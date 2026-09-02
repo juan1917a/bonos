@@ -120,6 +120,19 @@
   #compTbl th:first-child,#compTbl td:first-child{text-align:center}
   .selbox{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle}
   .bestpill{display:inline-block;background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up);border-radius:7px;padding:2px 8px;font-weight:700}
+  /* par cer / fwd */
+  .fwdpick{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:14px;padding:8px 18px 4px}
+  .fwdpick .fld{display:flex;flex-direction:column;gap:6px}
+  .fwdpick .fld label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .fwdpick .fld label b{color:var(--text)}
+  .fsel{font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+    background:var(--panel2);color:var(--text);width:100%;font-variant-numeric:tabular-nums}
+  .fsel:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .fwdswap{align-self:center;margin-bottom:9px;padding:6px 9px;color:var(--muted)}
+  .fwdmini{display:flex;gap:18px;flex-wrap:wrap;padding:2px 18px 14px;font-size:11.5px;color:var(--muted)}
+  .fwdmini b{color:var(--text);font-weight:600}
+  .fwdmini .sepdot{color:var(--faint)}
+  @media(max-width:560px){.fwdpick{grid-template-columns:1fr}.fwdswap{transform:rotate(90deg)}}
 </style>
 </head>
 <body>
@@ -145,6 +158,7 @@
     <button data-tab="graf" class="on">Gráficos</button>
     <button data-tab="lista">Lista &amp; Pricer</button>
     <button data-tab="comp">Comparar</button>
+    <button data-tab="fwd">Par CER · Fwd</button>
   </div>
 
   <!-- GRÁFICOS -->
@@ -202,6 +216,27 @@
     </div>
   </section>
 
+  <!-- PAR CER / FWD -->
+  <section class="tab" id="tab-fwd">
+    <div class="card">
+      <div class="hd">
+        <h2>Par CER <span class="note">· forward implícito entre dos bonos CER · como la <b>PAR CER</b> del sheet</span></h2>
+      </div>
+      <div class="fwdpick">
+        <div class="fld"><label>Bono <b>corto</b> (cerca)</label><select id="fwdA" class="fsel"></select></div>
+        <div class="fwdswap" title="El más corto por vencimiento se toma como pata cercana">→</div>
+        <div class="fld"><label>Bono <b>largo</b> (lejos)</label><select id="fwdB" class="fsel"></select></div>
+      </div>
+      <div class="fwdmini" id="fwdMini"></div>
+      <div class="kpis" id="fwdKpis" style="margin:0 18px 18px;border-radius:12px"></div>
+      <div class="foothelp" id="fwdFoot"></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>Curva CER — TIR real <span class="note">· puntos = bonos CER · ● los dos elegidos</span></h2></div>
+      <div class="chartbox"><svg id="chart5" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
+    </div>
+  </section>
+
   <div class="foothelp muted" style="text-align:center">
     Tabla y curva de <b>Curvas Local</b>; precios (MID/Bid/Offer) de <b>Panel</b>. Solo lectura, no modifica tu planilla.
   </div>
@@ -217,7 +252,7 @@ const REFS=["Caución1D","Caucion1D","Plazo Fijo"];
 const BULLET=t=>{const u=t.toUpperCase();return u.startsWith("S")||u.startsWith("X")||u.startsWith("TZX")||/^T\d/.test(u)||u.startsWith("TMF");};
 const TYPE_LBL={fija:"Tasa Fija",cer:"CER",dual:"Dual/TAMAR",ref:"Referencia"};
 let state={y:"tem",x:"md",filter:"all",rows:[],prices:{},baseTime:"—",top3:new Set(),rankMd:{},conv:null,
-  edits:{},tab:"graf",compare:new Set(),cmetric:"tea",cfmetric:"tem",_compInit:false,
+  edits:{},tab:"graf",compare:new Set(),cmetric:"tea",cfmetric:"tem",_compInit:false,fwdA:null,fwdB:null,
   refreshMs:(()=>{try{const v=localStorage.getItem('bonos-refresh');return v!=null?+v:DEF_REFRESH;}catch(e){return DEF_REFRESH;}})()};
 
 function jsonp(tab){return new Promise((res,rej)=>{
@@ -236,6 +271,10 @@ function classify(tk){const u=tk.toUpperCase();
   if(REFS.some(r=>r.toUpperCase()===u))return"ref";
   if(u.startsWith("TZX")||u.startsWith("TX"))return"cer";
   if(u.startsWith("TT")||u.startsWith("TY"))return"dual";return"fija";}
+// bonos CER (LECER/BONCER): TZX*, TX*, X<dígito> — los únicos con TIR real propia
+function isCER(tk){const u=(tk||"").toUpperCase();return u.startsWith("TZX")||u.startsWith("TX")||/^X\d/.test(u);}
+// filas CER con TIR real (col "cer" en %) y días válidos, ordenadas por vencimiento
+function cerRows(){return state.rows.filter(r=>!r.ref&&isCER(r.tk)&&r.cer!=null&&r.dias>0).sort((a,b)=>a.dias-b.dias);}
 
 async function load(){
   const [clR,pnR]=await Promise.all([jsonp("Curvas Local"),jsonp("Panel")]);
@@ -322,7 +361,10 @@ function scatterChart(svgId,rows,xacc,yacc,opt){
     const isConv=opt.markConv&&d.r.tk===state.conv;
     const isCmp=opt.markCompare&&state.compare.has(d.r.tk);
     if(isCmp)s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="none" stroke="${colOf('text')}" stroke-width="1.3" opacity=".45"/>`;
-    const rr=opt.big?4:3.4;
+    const isHi=opt.hiSet&&opt.hiSet.has(d.r.tk.toUpperCase());
+    if(isHi){s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="${acc}" opacity=".16"/>`;
+      s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.4" fill="none" stroke="${acc}" stroke-width="1.6"/>`;}
+    const rr=isHi?4.6:(opt.big?4:3.4);
     s+=`<circle class="pt" data-i="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rr}" fill="${c}" stroke="var(--panel)" stroke-width="1.2" style="cursor:pointer"/>`;
     if(isConv)s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rr+3}" fill="none" stroke="${colOf('gold')}" stroke-width="1.3"/>`;
     if(opt.labels)s+=`<text x="${x.toFixed(1)}" y="${(y-9).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="${cM}" pointer-events="none">${d.r.tk}</text>`;});
@@ -435,8 +477,46 @@ function renderCompare(){
   $("compFoot").innerHTML=`Tildá los bonos que quieras comparar — se grafican arriba y se resaltan en la curva de <b>Gráficos</b>. Editá <b>Mi precio</b> para recalcular TEM/TEA (3 decimales); el mejor entre los seleccionados va en <span class="bestpill">verde</span>. <span class="approx">≈</span> cuponero/dual (aproximado).`;
 }
 
-function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();}
-function charts(){renderChart();renderFondo();renderChart3();}
+// ---------- Par CER: spread + forward implícito (real) ----------
+function fwdCalc(rA,rB){
+  let n=rA,f=rB;if(n.dias>f.dias){const t=n;n=f;f=t;}       // pata corta = menor vencimiento
+  const spread=(f.cer!=null&&n.cer!=null)?f.cer-n.cer:null;  // TIR real larga − corta (en %)
+  let fwd=null;
+  if(f.dias>n.dias&&n.cer!=null&&f.cer!=null){
+    const y1=n.cer/100,y2=f.cer/100,t1=n.dias/365,t2=f.dias/365;
+    fwd=(Math.pow(Math.pow(1+y2,t2)/Math.pow(1+y1,t1),365/(f.dias-n.dias))-1)*100;
+  }
+  return{n,f,spread,fwd,gap:f.dias-n.dias};
+}
+function renderFwd(){
+  const cs=cerRows(),sa=$("fwdA"),sb=$("fwdB");if(!sa||!sb)return;
+  if(cs.length<2){sa.innerHTML=sb.innerHTML="";$("fwdKpis").innerHTML="";$("fwdMini").innerHTML="";
+    $("fwdFoot").innerHTML="Se necesitan al menos dos bonos CER en los datos.";scatterChart("chart5",[],r=>r.dias,r=>r.cer,{h:320,yfmt:v=>v.toFixed(1)+"%",xfmt:v=>Math.round(v),xlabel:"Días",ylabel:"TIR real"});return;}
+  const tks=cs.map(r=>r.tk.toUpperCase()),has=t=>t&&tks.includes(String(t).toUpperCase());
+  if(!has(state.fwdA))state.fwdA=has("X30S6")?"X30S6":cs[0].tk;
+  if(!has(state.fwdB)||state.fwdB.toUpperCase()===state.fwdA.toUpperCase())
+    state.fwdB=(has("TZXD6")&&"TZXD6"!==state.fwdA.toUpperCase())?"TZXD6":(cs.find(r=>r.tk.toUpperCase()!==state.fwdA.toUpperCase())||cs[cs.length-1]).tk;
+  const opts=sel=>cs.map(r=>`<option value="${r.tk}"${r.tk.toUpperCase()===String(sel).toUpperCase()?' selected':''}>${r.tk} · ${r.dias}d · real ${fmtP(r.cer)}</option>`).join("");
+  sa.innerHTML=opts(state.fwdA);sb.innerHTML=opts(state.fwdB);
+  const rA=cs.find(r=>r.tk.toUpperCase()===state.fwdA.toUpperCase()),rB=cs.find(r=>r.tk.toUpperCase()===state.fwdB.toUpperCase());
+  const c=fwdCalc(rA,rB);
+  const kp=[
+    {lbl:"Spread (BN)",val:c.spread==null?"—":(c.spread>0?"+":"")+c.spread.toFixed(2)+"%",foot:`TIR real ${c.f.tk} − ${c.n.tk}`,hl:0},
+    {lbl:"FWD real (BP)",val:c.fwd==null?"—":c.fwd.toFixed(2)+"%",foot:`forward ${c.n.tk}→${c.f.tk} · ${c.gap}d`,hl:1},
+    {lbl:"TIR real · corto",val:fmtP(c.n.cer),foot:`${c.n.tk} · ${c.n.dias}d`,hl:0},
+    {lbl:"TIR real · largo",val:fmtP(c.f.cer),foot:`${c.f.tk} · ${c.f.dias}d`,hl:0},
+  ];
+  $("fwdKpis").innerHTML=kp.map(k=>`<div class="kpi${k.hl?' hl':''}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div><div class="foot">${k.foot}</div></div>`).join("");
+  $("fwdMini").innerHTML=`<span><b>${c.n.tk}</b> real ${fmtP(c.n.cer)} · ${c.n.dias}d</span><span class="sepdot">→</span><span><b>${c.f.tk}</b> real ${fmtP(c.f.cer)} · ${c.f.dias}d</span><span class="sepdot">·</span><span>ventana <b>${c.gap} días</b></span>`;
+  $("fwdFoot").innerHTML=`El <b>forward real (BP)</b> es la tasa real implícita entre el vencimiento del bono corto y el del largo: <b>[(1+r<sub>largo</sub>)<sup>d<sub>L</sub>/365</sup> ÷ (1+r<sub>corto</sub>)<sup>d<sub>c</sub>/365</sup>]<sup>365/(d<sub>L</sub>−d<sub>c</sub>)</sup> − 1</b>. El <b>spread (BN)</b> es la diferencia de TIR real (larga − corta). Ambos usan la TIR real de <b>Curvas Local</b>; equivale a la <b>PAR CER</b> del sheet (columnas BN/BP).`;
+  scatterChart("chart5",cs,r=>r.dias,r=>r.cer,{h:320,line:true,labels:true,big:true,
+    hiSet:new Set([c.n.tk.toUpperCase(),c.f.tk.toUpperCase()]),
+    yfmt:v=>v.toFixed(1)+"%",xfmt:v=>Math.round(v),xlabel:"Días al vencimiento",ylabel:"TIR real",
+    tip:r=>`<b>${r.tk}</b><div class="r"><span>TIR real</span><span>${fmtP(r.cer)}</span></div><div class="r"><span>McD · días</span><span>${fmtN(r.md)} · ${r.dias}</span></div>`});
+}
+
+function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();renderFwd();}
+function charts(){renderChart();renderFondo();renderChart3();if(state.tab==='fwd')renderFwd();}
 
 let nextAt=0,timer=null;
 function setStatus(k,t){$("dot").className="dot"+(k==="stale"?" stale":k==="err"?" err":"");$("statusTxt").textContent=t;}
@@ -456,9 +536,12 @@ function start(){setRefreshMode(state.refreshMs);refresh(false);clearInterval(ti
 
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
-  ['graf','lista','comp'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
+  ['graf','lista','comp','fwd'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
   if(state.tab==='graf'){renderChart();renderFondo();}
-  if(state.tab==='comp')renderCompare();});
+  if(state.tab==='comp')renderCompare();
+  if(state.tab==='fwd')renderFwd();});
+$("fwdA").onchange=e=>{state.fwdA=e.target.value;renderFwd();};
+$("fwdB").onchange=e=>{state.fwdB=e.target.value;renderFwd();};
 document.querySelectorAll('.toggles button[data-y]').forEach(b=>b.onclick=()=>{state.y=b.dataset.y;document.querySelectorAll('.toggles button[data-y]').forEach(x=>x.classList.toggle('on',x===b));renderChart();});
 document.querySelectorAll('.toggles button[data-x]').forEach(b=>b.onclick=()=>{state.x=b.dataset.x;document.querySelectorAll('.toggles button[data-x]').forEach(x=>x.classList.toggle('on',x===b));renderChart();});
 document.querySelectorAll('.toggles button[data-cf]').forEach(b=>b.onclick=()=>{state.cfmetric=b.dataset.cf;document.querySelectorAll('.toggles button[data-cf]').forEach(x=>x.classList.toggle('on',x===b));renderFondo();});
