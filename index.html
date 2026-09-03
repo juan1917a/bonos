@@ -298,23 +298,37 @@ function cerRows(){return state.rows.filter(r=>!r.ref&&isCER(r.tk)&&r.cer!=null&
 // ---------- Sintéticos: futuros de dólar → tasa en pesos ----------
 const MES_COD={ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,OCT:9,NOV:10,DIC:11};
 const MES_NOM=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+function parseDMY(s){                             // "02/09/2026" (dd/mm/aaaa) o Date(aaaa,m,d)
+  if(s==null)return null;s=String(s);
+  let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);
+  if(m){let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1]);}
+  m=/Date\((\d+),(\d+),(\d+)/.exec(s);
+  if(m)return new Date(+m[1],+m[2],+m[3]);
+  const d=new Date(s);return isNaN(d)?null:d;
+}
 function parseSint(r){
   if(!r)return null;let g;try{g=toGrid(r);}catch(e){return null;}
   let dl=null;                                   // dólar implícito DL = Precio DL limpio (x100 VN) / 100
   for(let i=0;i<g.length&&dl==null;i++)for(const[lc,vc]of[[0,1],[4,5]]){
     if(/Precio DL limpio/i.test(g[i][lc]||"")){const v=num(g[i][vc]);if(!isNaN(v)){dl=v/100;break;}}}
+  let fechaHoy=parseDMY(g[1]&&g[1][5]);          // "Fecha Hoy" del sheet (F1) = fecha de referencia de los días
+  const settle={};                               // vencimientos del sheet (col F, fin de mes) por mes
+  for(let i=0;i<Math.min(g.length,12);i++){const dt=parseDMY(g[i][5]);if(dt&&(!settle[dt.getMonth()]||dt>settle[dt.getMonth()]))settle[dt.getMonth()]=dt;}
   const fut=[];                                  // tickers DLR/<MES><AA> con bid/offer/mid en cols P/Q/R/S
   for(let i=0;i<g.length;i++){const tk=(g[i][15]||"").trim();const m=/DLR\/([A-Z]{3})(\d{2})/i.exec(tk);if(!m)continue;
     const mo=MES_COD[m[1].toUpperCase()];if(mo==null)continue;const yy=2000+ +m[2];
     const bid=num(g[i][16]),offer=num(g[i][17]),mid=num(g[i][18]);
     fut.push({tk,mo,yy,bid:isNaN(bid)?null:bid,offer:isNaN(offer)?null:offer,mid:isNaN(mid)?null:mid});}
-  return {dl,fut};
+  return {dl,fut,fechaHoy,settle};
 }
 function synData(){
   const s=state.syn;if(!s||!s.dl||!s.fut)return{dl:s?s.dl:null,rows:[]};
-  const now=new Date(),t0=new Date(now.getFullYear(),now.getMonth(),now.getDate()),yr=now.getFullYear();
+  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const ref=(s.fechaHoy instanceof Date&&!isNaN(s.fechaHoy))?s.fechaHoy:today;  // usa la "Fecha Hoy" del sheet; si no, hoy real
+  const yr=ref.getFullYear();
   const rows=s.fut.filter(f=>f.mid!=null&&f.yy===yr).map(f=>{
-    const settle=new Date(f.yy,f.mo+1,0);const dias=Math.round((settle-t0)/864e5);
+    const settle=(s.settle&&s.settle[f.mo])?s.settle[f.mo]:new Date(f.yy,f.mo+1,0);  // vencimiento del sheet, o fin de mes
+    const dias=Math.round((settle-ref)/864e5);
     if(dias<=0)return null;
     const px=state.synedits[f.tk]!=null?state.synedits[f.tk]:f.mid;   // precio editable (default = mid del futuro)
     const edited=state.synedits[f.tk]!=null&&Math.abs(state.synedits[f.tk]-f.mid)>1e-9;
@@ -586,7 +600,7 @@ function renderSint(){
     <td id="syn-tea-${r.tk}" style="font-weight:650">${r.tk===best.tk?`<span class="bestpill">${r.tea.toFixed(2)}%</span>`:r.tea.toFixed(2)+'%'}</td></tr>`).join("");
   $("synBody").querySelectorAll("input.syncin").forEach(inp=>inp.addEventListener("input",()=>{const tk=inp.dataset.tk;const v=parseFloat(inp.value);state.synedits[tk]=isNaN(v)?null:v;updateSyn();}));
   $("synBody").querySelectorAll(".prcell").forEach(c=>c.addEventListener("click",()=>{const tk=c.dataset.tk;delete state.synedits[tk];renderSint();}));
-  $("synFoot").innerHTML=`Sintético en pesos = <b>vender el dólar futuro</b> y <b>comprar dólar-linked</b> al implícito $${fmtN(dl)}. Editá <b>Mi precio</b> del futuro y se recalculan spread/retorno/<b>TNA</b>/<b>TEA</b> y la curva (click en <b>Mid</b> vuelve al valor de mercado). Retorno directo = precio/implícito − 1; TNA = directo × 365/días; TEA = (1+directo)<sup>365/días</sup> − 1. Nocional 1.000 USD por contrato. Meses de ${new Date().getFullYear()} con futuro DLR cotizando; mejor TEA en <span class="bestpill">verde</span>. Equivale a la pestaña <b>Sinteticos</b> del sheet.`;
+  $("synFoot").innerHTML=`Sintético en pesos = <b>vender el dólar futuro</b> y <b>comprar dólar-linked</b> al implícito $${fmtN(dl)}. Editá <b>Mi precio</b> del futuro y se recalculan spread/retorno/<b>TNA</b>/<b>TEA</b> y la curva (click en <b>Mid</b> vuelve al valor de mercado). Retorno directo = precio/implícito − 1; TNA = directo × 365/días; TEA = (1+directo)<sup>365/días</sup> − 1. <b>Días</b> contados desde la <b>Fecha Hoy</b> de la planilla hasta el vencimiento (igual que el sheet). Nocional 1.000 USD por contrato; meses con futuro DLR cotizando; mejor TEA en <span class="bestpill">verde</span>. Equivale a la pestaña <b>Sinteticos</b> del sheet.`;
 }
 
 function synKpisMiniChart(dl,rows){
