@@ -191,7 +191,7 @@
     <div class="card">
       <div class="hd">
         <h2>Lista &amp; Pricer <span class="note">· escribí un precio → recalcula TEM y TEA · orden por McD</span></h2>
-        <div class="toggles"><button id="setBid">Bid</button><button id="setMid">MID</button><button id="setOffer">Offer</button><button id="resetPr">reset</button></div>
+        <div class="toggles"><button class="pxbond" data-px="bid">Bid</button><button class="pxbond" data-px="mid">MID</button><button class="pxbond" data-px="offer">Offer</button><button class="pxbond" data-px="reset">reset</button></div>
       </div>
       <div class="filters" id="filters" style="padding:0 18px 8px">
         <button data-f="all" class="on">Todos</button><button data-f="fija">Tasa Fija</button><button data-f="cer">CER</button><button data-f="dual">Dual/TAMAR</button>
@@ -206,7 +206,10 @@
     <div class="card">
       <div class="hd">
         <h2>Comparar <span class="note">· elegí activos → TEM/TEA lado a lado, con tu precio</span></h2>
-        <div class="toggles"><button data-cm="tem">TEM</button><button data-cm="tea" class="on">TEA</button></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="toggles"><button class="pxbond" data-px="bid">Bid</button><button class="pxbond" data-px="mid">MID</button><button class="pxbond" data-px="offer">Offer</button><button class="pxbond" data-px="reset">reset</button></div>
+          <div class="toggles"><button data-cm="tem">TEM</button><button data-cm="tea" class="on">TEA</button></div>
+        </div>
       </div>
       <div id="compChips" style="display:flex;align-items:center;gap:8px;padding:0 18px 12px"></div>
       <div class="chartbox"><svg id="chart3" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
@@ -243,7 +246,10 @@
     <div class="card">
       <div class="hd">
         <h2>Sintéticos en pesos <span class="note">· vender dólar futuro + comprar DL · tasa en pesos por mes · como la <b>Sinteticos</b> del sheet</span></h2>
-        <div class="toggles"><button data-sy="tea" class="on">TEA</button><button data-sy="tna">TNA</button><button data-sy="ret">Retorno</button></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="toggles"><button class="pxsyn" data-px="bid">Bid</button><button class="pxsyn" data-px="mid">MID</button><button class="pxsyn" data-px="offer">Offer</button><button class="pxsyn" data-px="reset">reset</button></div>
+          <div class="toggles"><button data-sy="tea" class="on">TEA</button><button data-sy="tna">TNA</button><button data-sy="ret">Retorno</button></div>
+        </div>
       </div>
       <div class="fwdmini" id="synMini"></div>
       <div class="kpis" id="synKpis" style="margin:0 18px 16px;border-radius:12px"></div>
@@ -668,10 +674,20 @@ document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
-$("setMid").onclick=()=>{state.rows.forEach(r=>{const p=state.prices[r.tk.toUpperCase()];if(p)state.edits[r.tk]=p.mid;});renderCompare();};
-$("setBid").onclick=()=>{state.rows.forEach(r=>{const p=state.prices[r.tk.toUpperCase()];if(p&&p.bid!=null)state.edits[r.tk]=p.bid;});renderCompare();};
-$("setOffer").onclick=()=>{state.rows.forEach(r=>{const p=state.prices[r.tk.toUpperCase()];if(p&&p.offer!=null)state.edits[r.tk]=p.offer;});renderCompare();};
-$("resetPr").onclick=()=>{state.edits={};renderCompare();};
+// Bid/MID/Offer/reset de BONOS (Comparar) — botones .pxbond en Lista y Comparar
+function applyPxBond(kind){
+  if(kind==='reset')state.edits={};
+  else state.rows.forEach(r=>{const p=state.prices[r.tk.toUpperCase()];if(p&&p[kind]!=null)state.edits[r.tk]=p[kind];});
+  renderCompare();
+}
+document.querySelectorAll('.pxbond').forEach(b=>b.onclick=()=>applyPxBond(b.dataset.px));
+// Bid/MID/Offer/reset de FUTUROS (Sintéticos) — botones .pxsyn
+function applyPxSyn(kind){
+  if(kind==='reset')state.synedits={};
+  else if(state.syn&&state.syn.fut)state.syn.fut.forEach(f=>{if(f[kind]!=null)state.synedits[f.tk]=f[kind];});
+  renderSint();
+}
+document.querySelectorAll('.pxsyn').forEach(b=>b.onclick=()=>applyPxSyn(b.dataset.px));
 $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute('data-theme');
   const nxt=cur==='dark'?'light':cur==='light'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
   document.documentElement.setAttribute('data-theme',nxt);try{localStorage.setItem('bonos-theme',nxt)}catch(e){}charts();};
