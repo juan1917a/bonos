@@ -146,6 +146,7 @@
       <span class="meta"><span class="dot" id="dot"></span> <span id="statusTxt">Conectando…</span></span>
       <span class="meta">Sheet <b id="baseTime">—</b></span>
       <span class="meta">Refresco <b id="countdown">—</b></span>
+      <span class="toggles" id="plazoToggles" style="padding:2px" title="Plazo de liquidación"><button data-st="t1">T+1</button><button data-st="t0">T+0</button></span>
       <span class="toggles" id="rfToggles" style="padding:2px"><button data-rf="30000">30s</button><button data-rf="300000">5min</button><button data-rf="0">Manual</button></span>
       <button class="icon" id="refreshBtn" title="Actualizar ahora">↻</button>
       <button class="icon" id="themeBtn" title="Tema">◐</button>
@@ -263,7 +264,7 @@
   </section>
 
   <div class="foothelp muted" style="text-align:center">
-    Tabla y curva de <b>Curvas Local</b>; precios (MID/Bid/Offer) de <b>Panel</b>; futuros de <b>Sinteticos</b>. Solo lectura, no modifica tu planilla.
+    Plazo <b>T+1</b> = <b>Curvas Local</b> + <b>Panel</b>; plazo <b>T+0</b> = <b>Curva Local T+0</b> + <b> Panel t+0</b> (se cambia arriba). Futuros de <b>Sinteticos</b>. Solo lectura, no modifica tu planilla.
   </div>
 </div>
 <div class="tt" id="tt"></div>
@@ -278,6 +279,7 @@ const BULLET=t=>{const u=t.toUpperCase();return u.startsWith("S")||u.startsWith(
 const TYPE_LBL={fija:"Tasa Fija",cer:"CER",dual:"Dual/TAMAR",ref:"Referencia"};
 let state={y:"tem",x:"md",filter:"all",rows:[],prices:{},baseTime:"—",top3:new Set(),rankMd:{},conv:null,
   edits:{},tab:"graf",compare:new Set(),cmetric:"tea",cfmetric:"tem",_compInit:false,fwdA:null,fwdB:null,syn:null,synmetric:"tea",synedits:{},
+  plazo:(()=>{try{const v=localStorage.getItem('bonos-plazo');return v==='t0'?'t0':'t1';}catch(e){return 't1';}})(),
   refreshMs:(()=>{try{const v=localStorage.getItem('bonos-refresh');return v!=null?+v:DEF_REFRESH;}catch(e){return DEF_REFRESH;}})()};
 
 function jsonp(tab){return new Promise((res,rej)=>{
@@ -345,7 +347,9 @@ function synData(){
 }
 
 async function load(){
-  const [clR,pnR,snR]=await Promise.all([jsonp("Curvas Local"),jsonp("Panel"),jsonp("Sinteticos").catch(()=>null)]);
+  const CLTAB=state.plazo==='t0'?"Curva Local T+0":"Curvas Local";   // tabla calculada (T+1 o T+0)
+  const PNTAB=state.plazo==='t0'?" Panel t+0":"Panel";               // precios MID/Bid/Offer (T+1 o T+0)
+  const [clR,pnR,snR]=await Promise.all([jsonp(CLTAB),jsonp(PNTAB),jsonp("Sinteticos").catch(()=>null)]);
   state.syn=parseSint(snR);
   const grid=toGrid(clR);state.baseTime=(grid[1]&&grid[1][3])?grid[1][3]:"—";
   const seen=new Set(),out=[];
@@ -590,7 +594,8 @@ function renderSint(){
     $("synMini").innerHTML="";$("synKpis").innerHTML="";
     $("synHead").innerHTML="";$("synBody").innerHTML="";
     $("synFoot").innerHTML=dl?"No hay futuros de dólar vigentes de este año en la pestaña <b>Sinteticos</b>.":"No pude leer la pestaña <b>Sinteticos</b> (¿existe y está compartida?).";
-    scatterChart("chart6",[],r=>r.dias,r=>r.tea,{h:320,yfmt:v=>v.toFixed(0)+"%",xfmt:v=>Math.round(v),xlabel:"Días",ylabel:"Tasa"});return;}
+    scatterChart("chart6",[],r=>r.dias,r=>r.tea,{h:320,yfmt:v=>v.toFixed(0)+"%",xfmt:v=>Math.round(v),xlabel:"Días",ylabel:"Tasa"});return;
+  }
   const best=synKpisMiniChart(dl,rows);
   const H=["Mes","Ticker","Mi precio (futuro)","Mid","Días","Spread fut/DL","Retorno directo","TNA","TEA"];
   $("synHead").innerHTML=H.map((t,i)=>`<th style="${i<2?'text-align:left':''}">${t}</th>`).join("");
@@ -647,15 +652,18 @@ function tickCd(){if(state.refreshMs<=0){$("countdown").textContent="manual";ret
 function setRefreshMode(ms){state.refreshMs=ms;try{localStorage.setItem('bonos-refresh',ms);}catch(e){}
   document.querySelectorAll('#rfToggles button').forEach(b=>b.classList.toggle('on',+b.dataset.rf===ms));
   nextAt=ms>0?Date.now()+ms:Infinity;tickCd();}
+function setPlazo(p,reload){state.plazo=(p==='t0'?'t0':'t1');try{localStorage.setItem('bonos-plazo',state.plazo);}catch(e){}
+  document.querySelectorAll('#plazoToggles button').forEach(b=>b.classList.toggle('on',b.dataset.st===state.plazo));
+  if(reload){state.edits={};state.synedits={};nextAt=0;refresh(true);}}   // al cambiar plazo, limpio precios editados (cambian)
 async function refresh(manual){
   try{setStatus("live",manual?"Actualizando…":"En vivo");await load();
     $("baseTime").textContent=state.baseTime;
-    $("sub").textContent=`${state.rows.filter(r=>!r.ref).length} instrumentos · sheet ${state.baseTime} · leído ${new Date().toLocaleTimeString('es-AR')}`;
+    $("sub").textContent=`${state.rows.filter(r=>!r.ref).length} instrumentos · ${state.plazo==='t0'?'T+0':'T+1'} · sheet ${state.baseTime} · leído ${new Date().toLocaleTimeString('es-AR')}`;
     setStatus("live","En vivo");$("errBanner").style.display="none";paint();
   }catch(e){setStatus("err","Error al leer");const eb=$("errBanner");eb.style.display="block";
     eb.innerHTML=`No pude leer el spreadsheet (<code>${e.message}</code>). Verificá que siga compartido como “cualquiera con el enlace puede ver”. Reintentando…`;}
   nextAt=state.refreshMs>0?Date.now()+state.refreshMs:Infinity;tickCd();}
-function start(){setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
+function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
@@ -674,6 +682,7 @@ document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
+document.querySelectorAll('#plazoToggles button').forEach(b=>b.onclick=()=>setPlazo(b.dataset.st,true));
 // Bid/MID/Offer/reset de BONOS (Comparar) — botones .pxbond en Lista y Comparar
 function applyPxBond(kind){
   if(kind==='reset')state.edits={};
