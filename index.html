@@ -275,7 +275,7 @@
 const SHEET_ID="1YKQ9N--kxhFfGaypCIq_BviUNB_GCkTp0oTMIlXpeqE";
 const DEF_REFRESH=300000; // por defecto 5 minutos
 const CL={tk:1,md:2,tem:3,tea:4,tna30:7,tnaM:8,cer:9,varpx:10,dias:11};
-const PN={tk:1,mid:3,bid:5,offer:6};
+const PN={tk:1,mid:3,bid:5,offer:6,last:54};   // col BC (54) = last price trading (cierre previo)
 const REFS=["Caución1D","Caucion1D","Plazo Fijo"];
 const BULLET=t=>{const u=t.toUpperCase();return u.startsWith("S")||u.startsWith("X")||u.startsWith("TZX")||/^T\d/.test(u)||u.startsWith("TMF");};
 const TYPE_LBL={fija:"Tasa Fija",cer:"CER",dual:"Dual/TAMAR",ref:"Referencia"};
@@ -364,9 +364,11 @@ async function load(){
   const pg=toGrid(pnR);const pr={};const want=new Set(out.map(r=>r.tk.toUpperCase()));
   for(let i=0;i<pg.length;i++){const g=pg[i];if(!g)continue;const tk=(g[PN.tk]||"").trim();
     if(!tk||!want.has(tk.toUpperCase()))continue;const mid=num(g[PN.mid]);if(isNaN(mid))continue;
-    const bid=num(g[PN.bid]),offer=num(g[PN.offer]);
-    if(!pr[tk.toUpperCase()])pr[tk.toUpperCase()]={mid,bid:isNaN(bid)?null:bid,offer:isNaN(offer)?null:offer};}
+    const bid=num(g[PN.bid]),offer=num(g[PN.offer]),last=num(g[PN.last]);
+    if(!pr[tk.toUpperCase()])pr[tk.toUpperCase()]={mid,bid:isNaN(bid)?null:bid,offer:isNaN(offer)?null:offer,last:isNaN(last)?null:last};}
   state.prices=pr;
+  // variación del precio vs el last price (BC) del plazo activo → cambia entre T+1 y T+0
+  state.rows.forEach(r=>{const p=pr[r.tk.toUpperCase()];r.varpx=(p&&p.last&&p.mid!=null)?(p.mid/p.last-1)*100:null;});
   const tradeable=out.filter(r=>!r.ref&&!isNaN(r.md));
   const distinct=[...new Set(tradeable.map(r=>r.md))].sort((a,b)=>a-b).slice(0,3);
   state.rankMd={};distinct.forEach((mdv,i)=>{state.rankMd[mdv]=i+1;});
@@ -510,7 +512,7 @@ function renderPricerList(){
       if(c.heat){const v=r[c.k];return `<td style="${cerColor(v,mx)};border-radius:5px;font-weight:600">${v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%'}</td>`;}
       if(c.k==="varpx")return `<td>${varTag(r.varpx)||'—'}</td>`;
       return `<td>${c.f?c.f(r[c.k]):r[c.k]}</td>`;}).join("")}</tr>`;}).join("");
-  $("pfoot").innerHTML=`<b>McD</b> duration · <b>TEM</b> mensual · <b>TEA</b> anual · <b>TNA 30/365</b> y <b>Mat/365</b> dos convenciones · <b>CER</b> con heatmap · <b>Var Px</b> variación del día. Los <span class="rank" style="vertical-align:middle">1</span> <span class="rank" style="vertical-align:middle">2</span> <span class="rank" style="vertical-align:middle">3</span> son menor duration; <span class="conviene">★ conviene</span> = mejor TEM entre esas tres.`;
+  $("pfoot").innerHTML=`<b>McD</b> duration · <b>TEM</b> mensual · <b>TEA</b> anual · <b>TNA 30/365</b> y <b>Mat/365</b> dos convenciones · <b>CER</b> con heatmap · <b>Var Px</b> variación vs último precio (col BC, por plazo). Los <span class="rank" style="vertical-align:middle">1</span> <span class="rank" style="vertical-align:middle">2</span> <span class="rank" style="vertical-align:middle">3</span> son menor duration; <span class="conviene">★ conviene</span> = mejor TEM entre esas tres.`;
 }
 
 // ---------- Comparar (bono por fila, con checkbox) ----------
