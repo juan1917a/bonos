@@ -135,6 +135,14 @@
   .fwdmini b{color:var(--text);font-weight:600}
   .fwdmini .sepdot{color:var(--faint)}
   @media(max-width:560px){.fwdpick{grid-template-columns:1fr}.fwdswap{transform:rotate(90deg)}}
+  /* caucion editable */
+  .caudates{display:flex;gap:8px;flex-wrap:wrap;padding:2px 18px 12px}
+  .caudates label{display:flex;flex-direction:column;gap:3px;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .caudates input{font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);color:var(--text);font-variant-numeric:tabular-nums}
+  .caudates input:focus{outline:none;border-color:var(--accent)}
+  .caulbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;font-weight:600}
+  #cauchoTbl td.pos{color:var(--up);font-weight:600}
+  #cauchoTbl td.neg{color:var(--down);font-weight:600}
 </style>
 </head>
 <body>
@@ -269,9 +277,17 @@
   <!-- CAUCIÓN / CARRY -->
   <section class="tab" id="tab-caucho">
     <div class="card">
-      <div class="hd"><h2>Caución · carry entre fechas de liquidación <span class="note" id="cauchoNote"></span></h2></div>
+      <div class="hd">
+        <h2>Caución · carry entre fechas de liquidación <span class="note">· editable</span></h2>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label class="caulbl">TNA <input id="cauRate" class="pinput" style="width:72px" inputmode="decimal">%</label>
+          <div class="toggles" id="cauModeToggles"><button data-caum="s" class="on">Simple</button><button data-caum="c">Compuesta</button></div>
+          <button class="icon" id="cauReset" title="Restaurar fechas por defecto">↺ fechas</button>
+        </div>
+      </div>
+      <div class="caudates" id="cauDates"></div>
       <div class="tablewrap"><table id="cauchoTbl"><thead><tr id="cauchoHead"></tr></thead><tbody id="cauchoBody"></tbody></table></div>
-      <div class="foothelp">Espejo en vivo de la matriz <b>CI</b> de tu hoja · fila y columna = fecha de liquidación · la diagonal (misma fecha) va en oscuro.</div>
+      <div class="foothelp" id="cauchoNote">Editá la <b>TNA</b> y las <b>fechas</b> de liquidación · celda = rendimiento de caución entre la fecha de la fila (desde) y la de la columna (hasta) · la diagonal (misma fecha) va en oscuro.</div>
     </div>
   </section>
 
@@ -683,34 +699,44 @@ async function refresh(manual){
   nextAt=state.refreshMs>0?Date.now()+state.refreshMs:Infinity;tickCd();}
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
-let cauchoGrid=null;
-async function renderCaucho(){
-  try{
-    cauchoGrid=toGrid(await jsonp("CI"));
-    const g=cauchoGrid;
-    let dr=-1;
-    for(let i=0;i<Math.min(6,g.length);i++){const c=g[i]||[];if(/(Sep|Oct|Nov|Dic|Ene|Feb|Mar|Abr|May|Jun|Jul|Ago)/i.test((c[1]||'')+' '+(c[2]||'')+' '+(c[3]||''))){dr=i;break;}}
-    if(dr<0) throw new Error("no encontré la fila de fechas");
-    const dates=[];for(let c=1;c<=7;c++)dates.push(((g[dr]||[])[c]||'').trim());
-    let rate='';
-    for(let i=Math.max(0,dr-1);i<=dr+1&&!rate;i++){for(let c=1;c<=4;c++){const v=((g[i]||[])[c]||'').trim();if(/^\d+([.,]\d+)?%$/.test(v)){rate=v;break;}}}
-    $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${d||''}</th>`).join('');
-    let body='';
-    for(let i=0;i<7;i++){
-      const row=g[dr+1+i]||[]; const lbl=dates[i]||'';
-      let tds='';
-      for(let c=1;c<=7;c++){
-        if(c===i+1){ tds+='<td style="background:#243356"></td>'; continue; }
-        let v=(row[c]||'').trim();
-        const nv=parseFloat(v.replace('%','').replace(/\./g,'').replace(',','.'));
-        if(isFinite(nv)&&Math.abs(nv)>50) v='';   // oculta filas-helper (precios ~117%)
-        tds+=`<td style="text-align:right">${v||'—'}</td>`;
-      }
-      body+=`<tr><th style="text-align:left">${lbl}</th>${tds}</tr>`;
+const CAU_DEFAULT_DATES=['2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-05'];
+let cauState={rate:'21.00',mode:'s',dates:CAU_DEFAULT_DATES.slice()};
+try{const s=JSON.parse(localStorage.getItem('cauState')||'null');if(s&&Array.isArray(s.dates)&&s.dates.length){cauState={rate:s.rate!=null?String(s.rate):'21.00',mode:s.mode==='c'?'c':'s',dates:s.dates};}}catch(e){}
+function cauSave(){try{localStorage.setItem('cauState',JSON.stringify(cauState));}catch(e){}}
+const CAU_MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function cauFmt(iso){const d=new Date(iso+'T00:00');if(isNaN(d))return iso||'—';return d.getDate()+'-'+CAU_MON[d.getMonth()];}
+function cauCarry(fromIso,toIso){
+  const a=new Date(fromIso+'T00:00'),b=new Date(toIso+'T00:00');
+  if(isNaN(a)||isNaN(b))return null;
+  const days=Math.round((b-a)/86400000);
+  const r=(parseFloat(String(cauState.rate).replace(',','.'))||0)/100;
+  if(cauState.mode==='c')return Math.pow(1+r/365,days)-1;
+  return r*days/365;
+}
+function cauMatrix(){
+  const dates=cauState.dates;
+  $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${cauFmt(d)}</th>`).join('');
+  let body='';
+  for(let i=0;i<dates.length;i++){
+    let tds='';
+    for(let j=0;j<dates.length;j++){
+      if(i===j){tds+='<td style="background:var(--panel2);opacity:.45">—</td>';continue;}
+      const v=cauCarry(dates[i],dates[j]);
+      if(v===null){tds+='<td>—</td>';continue;}
+      const cls=v>0?'pos':(v<0?'neg':'');
+      tds+=`<td class="${cls}">${(v*100).toFixed(3)}%</td>`;
     }
-    $("cauchoBody").innerHTML=body;
-    $("cauchoNote").textContent = rate?('· caución '+rate):'';
-  }catch(e){ $("cauchoBody").innerHTML='<tr><td>No pude leer la matriz CI ('+(e&&e.message||e)+')</td></tr>'; }
+    body+=`<tr><th style="text-align:left">${cauFmt(dates[i])}</th>${tds}</tr>`;
+  }
+  $("cauchoBody").innerHTML=body;
+}
+function renderCaucho(){
+  const de=$("cauDates");
+  de.innerHTML=cauState.dates.map((d,i)=>`<label>L${i+1}<input type="date" data-di="${i}" value="${d}"></label>`).join('');
+  de.querySelectorAll('input[type=date]').forEach(inp=>inp.onchange=e=>{cauState.dates[+e.target.dataset.di]=e.target.value;cauSave();cauMatrix();});
+  const rf=$("cauRate"); if(document.activeElement!==rf) rf.value=(parseFloat(String(cauState.rate).replace(',','.'))||0).toFixed(2);
+  document.querySelectorAll('#cauModeToggles button').forEach(b=>b.classList.toggle('on',b.dataset.caum===cauState.mode));
+  cauMatrix();
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
@@ -729,6 +755,10 @@ document.querySelectorAll('.toggles button[data-cf]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{state.cmetric=b.dataset.cm;document.querySelectorAll('.toggles button[data-cm]').forEach(x=>x.classList.toggle('on',x===b));renderChart3();});
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
+$("cauRate").oninput=e=>{cauState.rate=e.target.value;cauSave();cauMatrix();};
+$("cauRate").onblur=e=>{e.target.value=(parseFloat(String(cauState.rate).replace(',','.'))||0).toFixed(2);};
+document.querySelectorAll('#cauModeToggles button').forEach(b=>b.onclick=()=>{cauState.mode=b.dataset.caum;cauSave();document.querySelectorAll('#cauModeToggles button').forEach(x=>x.classList.toggle('on',x===b));cauMatrix();});
+$("cauReset").onclick=()=>{cauState.dates=CAU_DEFAULT_DATES.slice();cauSave();renderCaucho();};
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
 document.querySelectorAll('#plazoToggles button').forEach(b=>b.onclick=()=>setPlazo(b.dataset.st,true));
 // Bid/MID/Offer/reset de BONOS (Comparar) — botones .pxbond en Lista y Comparar
