@@ -694,15 +694,21 @@ async function renderCaucho(){
     const dates=[];for(let c=1;c<=7;c++)dates.push(((g[dr]||[])[c]||'').trim());
     let rate='';
     for(let i=Math.max(0,dr-1);i<=dr+1&&!rate;i++){for(let c=1;c<=4;c++){const v=((g[i]||[])[c]||'').trim();if(/^\d+([.,]\d+)?%$/.test(v)){rate=v;break;}}}
-    const mrows=[];
-    for(let i=dr+1;i<g.length;i++){const row=g[i]||[];let emp=0,empc=-1,vals=0;for(let c=1;c<=7;c++){const v=(row[c]||'').trim();if(v===''){emp++;empc=c;}else vals++;}if(emp===1&&vals>=5)mrows.push({row,diag:empc});}
     $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${d||''}</th>`).join('');
-    $("cauchoBody").innerHTML=mrows.map(m=>{
-      const lbl=dates[m.diag-1]||'';
+    let body='';
+    for(let i=0;i<7;i++){
+      const row=g[dr+1+i]||[]; const lbl=dates[i]||'';
       let tds='';
-      for(let c=1;c<=7;c++){ if(c===m.diag) tds+='<td style="background:#243356"></td>'; else { const v=(m.row[c]||'').trim(); tds+=`<td style="text-align:right">${v||'—'}</td>`; } }
-      return `<tr><th style="text-align:left">${lbl}</th>${tds}</tr>`;
-    }).join('') || '<tr><td>Sin datos en la matriz CI.</td></tr>';
+      for(let c=1;c<=7;c++){
+        if(c===i+1){ tds+='<td style="background:#243356"></td>'; continue; }
+        let v=(row[c]||'').trim();
+        const nv=parseFloat(v.replace('%','').replace(/\./g,'').replace(',','.'));
+        if(isFinite(nv)&&Math.abs(nv)>50) v='';   // oculta filas-helper (precios ~117%)
+        tds+=`<td style="text-align:right">${v||'—'}</td>`;
+      }
+      body+=`<tr><th style="text-align:left">${lbl}</th>${tds}</tr>`;
+    }
+    $("cauchoBody").innerHTML=body;
     $("cauchoNote").textContent = rate?('· caución '+rate):'';
   }catch(e){ $("cauchoBody").innerHTML='<tr><td>No pude leer la matriz CI ('+(e&&e.message||e)+')</td></tr>'; }
 }
