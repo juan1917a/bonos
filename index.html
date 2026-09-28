@@ -141,8 +141,13 @@
   .caudates input{font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);color:var(--text);font-variant-numeric:tabular-nums}
   .caudates input:focus{outline:none;border-color:var(--accent)}
   .caulbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;font-weight:600}
-  #cauchoTbl td.pos{color:var(--up);font-weight:600}
-  #cauchoTbl td.neg{color:var(--down);font-weight:600}
+  #cauchoTbl td{padding:3px 5px}
+  #cauchoTbl td.caudiag{background:var(--panel2);opacity:.45;text-align:center}
+  .caucell{width:74px;text-align:right;font:inherit;font-size:12px;font-variant-numeric:tabular-nums;padding:4px 6px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text)}
+  .caucell:hover{border-color:var(--border)}
+  .caucell:focus{outline:none;border-color:var(--accent);background:var(--panel2)}
+  .caucell::placeholder{color:var(--faint)}
+  .caucell.pos{color:var(--up);font-weight:600} .caucell.neg{color:var(--down);font-weight:600}
 </style>
 </head>
 <body>
@@ -282,12 +287,14 @@
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <label class="caulbl">TNA <input id="cauRate" class="pinput" style="width:72px" inputmode="decimal">%</label>
           <div class="toggles" id="cauModeToggles"><button data-caum="s" class="on">Simple</button><button data-caum="c">Compuesta</button></div>
+          <button id="cauCalcBtn" title="Autocompletar la matriz desde la TNA (después podés editar cada celda)">Calcular desde TNA</button>
+          <button id="cauClearBtn" title="Vaciar todas las celdas">Limpiar</button>
           <button class="icon" id="cauReset" title="Restaurar fechas por defecto">↺ fechas</button>
         </div>
       </div>
       <div class="caudates" id="cauDates"></div>
       <div class="tablewrap"><table id="cauchoTbl"><thead><tr id="cauchoHead"></tr></thead><tbody id="cauchoBody"></tbody></table></div>
-      <div class="foothelp" id="cauchoNote">Editá la <b>TNA</b> y las <b>fechas</b> de liquidación · celda = rendimiento de caución entre la fecha de la fila (desde) y la de la columna (hasta) · la diagonal (misma fecha) va en oscuro.</div>
+      <div class="foothelp" id="cauchoNote">Escribí vos los números en cada celda (fila = desde · columna = hasta) · tus valores y fechas quedan guardados · <b>Calcular desde TNA</b> autocompleta y después podés ajustar a mano · la diagonal (misma fecha) va en oscuro.</div>
     </div>
   </section>
 
@@ -700,8 +707,8 @@ async function refresh(manual){
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
 const CAU_DEFAULT_DATES=['2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-05'];
-let cauState={rate:'21.00',mode:'s',dates:CAU_DEFAULT_DATES.slice()};
-try{const s=JSON.parse(localStorage.getItem('cauState')||'null');if(s&&Array.isArray(s.dates)&&s.dates.length){cauState={rate:s.rate!=null?String(s.rate):'21.00',mode:s.mode==='c'?'c':'s',dates:s.dates};}}catch(e){}
+let cauState={rate:'21.00',mode:'s',dates:CAU_DEFAULT_DATES.slice(),cells:{}};
+try{const s=JSON.parse(localStorage.getItem('cauState')||'null');if(s&&Array.isArray(s.dates)&&s.dates.length){cauState={rate:s.rate!=null?String(s.rate):'21.00',mode:s.mode==='c'?'c':'s',dates:s.dates,cells:(s.cells&&typeof s.cells==='object')?s.cells:{}};}}catch(e){}
 function cauSave(){try{localStorage.setItem('cauState',JSON.stringify(cauState));}catch(e){}}
 const CAU_MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function cauFmt(iso){const d=new Date(iso+'T00:00');if(isNaN(d))return iso||'—';return d.getDate()+'-'+CAU_MON[d.getMonth()];}
@@ -713,23 +720,35 @@ function cauCarry(fromIso,toIso){
   if(cauState.mode==='c')return Math.pow(1+r/365,days)-1;
   return r*days/365;
 }
+function cauCellColor(inp){const n=parseFloat(String(inp.value).replace('%','').replace(',','.'));inp.classList.toggle('neg',isFinite(n)&&n<0);inp.classList.toggle('pos',isFinite(n)&&n>0);}
 function cauMatrix(){
-  const dates=cauState.dates;
+  const dates=cauState.dates; if(!cauState.cells)cauState.cells={}; const cells=cauState.cells;
   $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${cauFmt(d)}</th>`).join('');
   let body='';
   for(let i=0;i<dates.length;i++){
     let tds='';
     for(let j=0;j<dates.length;j++){
-      if(i===j){tds+='<td style="background:var(--panel2);opacity:.45">—</td>';continue;}
-      const v=cauCarry(dates[i],dates[j]);
-      if(v===null){tds+='<td>—</td>';continue;}
-      const cls=v>0?'pos':(v<0?'neg':'');
-      tds+=`<td class="${cls}">${(v*100).toFixed(3)}%</td>`;
+      if(i===j){tds+='<td class="caudiag">—</td>';continue;}
+      const val=(cells[i+'-'+j]!=null)?cells[i+'-'+j]:'';
+      tds+=`<td><input class="caucell" data-ij="${i}-${j}" value="${String(val).replace(/"/g,'&quot;')}" placeholder="—"></td>`;
     }
     body+=`<tr><th style="text-align:left">${cauFmt(dates[i])}</th>${tds}</tr>`;
   }
   $("cauchoBody").innerHTML=body;
+  $("cauchoBody").querySelectorAll('input.caucell').forEach(inp=>{
+    cauCellColor(inp);
+    inp.oninput=e=>{cauState.cells[e.target.dataset.ij]=e.target.value;cauSave();cauCellColor(e.target);};
+  });
 }
+function cauCalc(){
+  const dates=cauState.dates; cauState.cells={};
+  for(let i=0;i<dates.length;i++)for(let j=0;j<dates.length;j++){
+    if(i===j)continue; const v=cauCarry(dates[i],dates[j]);
+    if(v!==null)cauState.cells[i+'-'+j]=(v*100).toFixed(3)+'%';
+  }
+  cauSave();cauMatrix();
+}
+function cauClear(){cauState.cells={};cauSave();cauMatrix();}
 function renderCaucho(){
   const de=$("cauDates");
   de.innerHTML=cauState.dates.map((d,i)=>`<label>L${i+1}<input type="date" data-di="${i}" value="${d}"></label>`).join('');
@@ -759,6 +778,8 @@ $("cauRate").oninput=e=>{cauState.rate=e.target.value;cauSave();cauMatrix();};
 $("cauRate").onblur=e=>{e.target.value=(parseFloat(String(cauState.rate).replace(',','.'))||0).toFixed(2);};
 document.querySelectorAll('#cauModeToggles button').forEach(b=>b.onclick=()=>{cauState.mode=b.dataset.caum;cauSave();document.querySelectorAll('#cauModeToggles button').forEach(x=>x.classList.toggle('on',x===b));cauMatrix();});
 $("cauReset").onclick=()=>{cauState.dates=CAU_DEFAULT_DATES.slice();cauSave();renderCaucho();};
+$("cauCalcBtn").onclick=()=>cauCalc();
+$("cauClearBtn").onclick=()=>cauClear();
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
 document.querySelectorAll('#plazoToggles button').forEach(b=>b.onclick=()=>setPlazo(b.dataset.st,true));
 // Bid/MID/Offer/reset de BONOS (Comparar) — botones .pxbond en Lista y Comparar
