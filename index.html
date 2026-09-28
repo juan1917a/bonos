@@ -163,6 +163,7 @@
     <button data-tab="comp">Comparar</button>
     <button data-tab="fwd">Par CER · Fwd</button>
     <button data-tab="sint">Sintéticos</button>
+    <button data-tab="caucho">Caución</button>
   </div>
 
   <!-- GRÁFICOS -->
@@ -262,6 +263,15 @@
     <div class="card">
       <div class="hd"><h2>Curva de tasas sintéticas <span class="note">· tasa en pesos vs días al vencimiento</span></h2></div>
       <div class="chartbox"><svg id="chart6" viewBox="0 0 960 320" preserveAspectRatio="xMidYMid meet"></svg></div>
+    </div>
+  </section>
+
+  <!-- CAUCIÓN / CARRY -->
+  <section class="tab" id="tab-caucho">
+    <div class="card">
+      <div class="hd"><h2>Caución · carry entre fechas de liquidación <span class="note" id="cauchoNote"></span></h2></div>
+      <div class="tablewrap"><table id="cauchoTbl"><thead><tr id="cauchoHead"></tr></thead><tbody id="cauchoBody"></tbody></table></div>
+      <div class="foothelp">Espejo en vivo de la matriz <b>CI</b> de tu hoja · fila y columna = fecha de liquidación · la diagonal (misma fecha) va en oscuro.</div>
     </div>
   </section>
 
@@ -651,7 +661,7 @@ function updateSyn(){                        // recalcula sin reconstruir los in
   });
 }
 
-function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();renderFwd();renderSint();}
+function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();renderFwd();renderSint();if(state.tab==='caucho')renderCaucho();}
 function charts(){renderChart();renderFondo();renderChart3();if(state.tab==='fwd')renderFwd();if(state.tab==='sint')renderSint();}
 
 let nextAt=0,timer=null;
@@ -673,13 +683,37 @@ async function refresh(manual){
   nextAt=state.refreshMs>0?Date.now()+state.refreshMs:Infinity;tickCd();}
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
+let cauchoGrid=null;
+async function renderCaucho(){
+  try{
+    cauchoGrid=toGrid(await jsonp("CI"));
+    const g=cauchoGrid;
+    let dr=-1;
+    for(let i=0;i<Math.min(6,g.length);i++){const c=g[i]||[];if(/(Sep|Oct|Nov|Dic|Ene|Feb|Mar|Abr|May|Jun|Jul|Ago)/i.test((c[1]||'')+' '+(c[2]||'')+' '+(c[3]||''))){dr=i;break;}}
+    if(dr<0) throw new Error("no encontré la fila de fechas");
+    const dates=[];for(let c=1;c<=7;c++)dates.push(((g[dr]||[])[c]||'').trim());
+    let rate='';
+    for(let i=Math.max(0,dr-1);i<=dr+1&&!rate;i++){for(let c=1;c<=4;c++){const v=((g[i]||[])[c]||'').trim();if(/^\d+([.,]\d+)?%$/.test(v)){rate=v;break;}}}
+    const mrows=[];
+    for(let i=dr+1;i<g.length;i++){const row=g[i]||[];let emp=0,empc=-1,vals=0;for(let c=1;c<=7;c++){const v=(row[c]||'').trim();if(v===''){emp++;empc=c;}else vals++;}if(emp===1&&vals>=5)mrows.push({row,diag:empc});}
+    $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${d||''}</th>`).join('');
+    $("cauchoBody").innerHTML=mrows.map(m=>{
+      const lbl=dates[m.diag-1]||'';
+      let tds='';
+      for(let c=1;c<=7;c++){ if(c===m.diag) tds+='<td style="background:#243356"></td>'; else { const v=(m.row[c]||'').trim(); tds+=`<td style="text-align:right">${v||'—'}</td>`; } }
+      return `<tr><th style="text-align:left">${lbl}</th>${tds}</tr>`;
+    }).join('') || '<tr><td>Sin datos en la matriz CI.</td></tr>';
+    $("cauchoNote").textContent = rate?('· caución '+rate):'';
+  }catch(e){ $("cauchoBody").innerHTML='<tr><td>No pude leer la matriz CI ('+(e&&e.message||e)+')</td></tr>'; }
+}
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
-  ['graf','lista','comp','fwd','sint'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
+  ['graf','lista','comp','fwd','sint','caucho'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
   if(state.tab==='graf'){renderChart();renderFondo();}
   if(state.tab==='comp')renderCompare();
   if(state.tab==='fwd')renderFwd();
-  if(state.tab==='sint')renderSint();});
+  if(state.tab==='sint')renderSint();
+  if(state.tab==='caucho')renderCaucho();});
 $("fwdA").onchange=e=>{state.fwdA=e.target.value;renderFwd();};
 $("fwdB").onchange=e=>{state.fwdB=e.target.value;renderFwd();};
 document.querySelectorAll('.toggles button[data-sy]').forEach(b=>b.onclick=()=>{state.synmetric=b.dataset.sy;document.querySelectorAll('.toggles button[data-sy]').forEach(x=>x.classList.toggle('on',x===b));renderSint();});
