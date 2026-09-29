@@ -135,19 +135,16 @@
   .fwdmini b{color:var(--text);font-weight:600}
   .fwdmini .sepdot{color:var(--faint)}
   @media(max-width:560px){.fwdpick{grid-template-columns:1fr}.fwdswap{transform:rotate(90deg)}}
-  /* caucion editable */
-  .caudates{display:flex;gap:8px;flex-wrap:wrap;padding:2px 18px 12px}
-  .caudates label{display:flex;flex-direction:column;gap:3px;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-  .caudates input{font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);color:var(--text);font-variant-numeric:tabular-nums}
-  .caudates input:focus{outline:none;border-color:var(--accent)}
+  /* calculadora T+0 */
   .caulbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;font-weight:600}
-  #cauchoTbl td{padding:3px 5px}
-  #cauchoTbl td.caudiag{background:var(--panel2);opacity:.45;text-align:center}
-  .caucell{width:74px;text-align:right;font:inherit;font-size:12px;font-variant-numeric:tabular-nums;padding:4px 6px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text)}
-  .caucell:hover{border-color:var(--border)}
-  .caucell:focus{outline:none;border-color:var(--accent);background:var(--panel2)}
-  .caucell::placeholder{color:var(--faint)}
-  .caucell.pos{color:var(--up);font-weight:600} .caucell.neg{color:var(--down);font-weight:600}
+  .calcpick{display:flex;gap:6px;flex-wrap:wrap;padding:2px 18px 12px}
+  .calcchip{padding:5px 11px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;user-select:none}
+  .calcchip:hover{border-color:var(--faint)}
+  .calcchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .calcin{width:104px;text-align:right;font:inherit;font-size:12.5px;font-variant-numeric:tabular-nums;padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--panel2);color:var(--text)}
+  .calcin:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  #calcTbl td.t0{color:var(--accent);font-weight:700;font-size:13.5px}
+  .calcbad{color:var(--down);font-weight:700} .calcgood{color:var(--up);font-weight:700}
 </style>
 </head>
 <body>
@@ -176,7 +173,7 @@
     <button data-tab="comp">Comparar</button>
     <button data-tab="fwd">Par CER · Fwd</button>
     <button data-tab="sint">Sintéticos</button>
-    <button data-tab="caucho">Caución</button>
+    <button data-tab="calc">Calc T+0</button>
   </div>
 
   <!-- GRÁFICOS -->
@@ -280,21 +277,19 @@
   </section>
 
   <!-- CAUCIÓN / CARRY -->
-  <section class="tab" id="tab-caucho">
+  <section class="tab" id="tab-calc">
     <div class="card">
       <div class="hd">
-        <h2>Caución · carry entre fechas de liquidación <span class="note">· editable</span></h2>
+        <h2>Calculadora T+0 <span class="note">· poné T+1 y la caución → T+0 justo · caro/barato</span></h2>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <label class="caulbl">TNA <input id="cauRate" class="pinput" style="width:72px" inputmode="decimal">%</label>
-          <div class="toggles" id="cauModeToggles"><button data-caum="s" class="on">Simple</button><button data-caum="c">Compuesta</button></div>
-          <button id="cauCalcBtn" title="Autocompletar la matriz desde la TNA (después podés editar cada celda)">Calcular desde TNA</button>
-          <button id="cauClearBtn" title="Vaciar todas las celdas">Limpiar</button>
-          <button class="icon" id="cauReset" title="Restaurar fechas por defecto">↺ fechas</button>
+          <label class="caulbl">Caución TNA <input id="calcRate" class="pinput" style="width:70px" inputmode="decimal">%</label>
+          <label class="caulbl">Días <input id="calcDias" class="pinput" style="width:52px" inputmode="numeric"></label>
+          <div class="toggles" id="calcFiltros"><button data-cf2="fija" class="on">Fija</button><button data-cf2="cer">CER</button><button data-cf2="dual">Dual</button><button data-cf2="all">Todas</button></div>
         </div>
       </div>
-      <div class="caudates" id="cauDates"></div>
-      <div class="tablewrap"><table id="cauchoTbl"><thead><tr id="cauchoHead"></tr></thead><tbody id="cauchoBody"></tbody></table></div>
-      <div class="foothelp" id="cauchoNote">Escribí vos los números en cada celda (fila = desde · columna = hasta) · tus valores y fechas quedan guardados · <b>Calcular desde TNA</b> autocompleta y después podés ajustar a mano · la diagonal (misma fecha) va en oscuro.</div>
+      <div class="calcpick" id="calcPick"></div>
+      <div class="tablewrap"><table id="calcTbl"><thead><tr id="calcHead"></tr></thead><tbody id="calcBody"></tbody></table></div>
+      <div class="foothelp" id="calcFoot"></div>
     </div>
   </section>
 
@@ -684,7 +679,7 @@ function updateSyn(){                        // recalcula sin reconstruir los in
   });
 }
 
-function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();renderFwd();renderSint();if(state.tab==='caucho')renderCaucho();}
+function paint(){renderKpis();renderChart();renderFondo();renderPricerList();renderCompare();renderFwd();renderSint();if(state.tab==='calc')renderCalc();}
 function charts(){renderChart();renderFondo();renderChart3();if(state.tab==='fwd')renderFwd();if(state.tab==='sint')renderSint();}
 
 let nextAt=0,timer=null;
@@ -706,65 +701,56 @@ async function refresh(manual){
   nextAt=state.refreshMs>0?Date.now()+state.refreshMs:Infinity;tickCd();}
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
-const CAU_DEFAULT_DATES=['2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-05'];
-let cauState={rate:'21.00',mode:'s',dates:CAU_DEFAULT_DATES.slice(),cells:{}};
-try{const s=JSON.parse(localStorage.getItem('cauState')||'null');if(s&&Array.isArray(s.dates)&&s.dates.length){cauState={rate:s.rate!=null?String(s.rate):'21.00',mode:s.mode==='c'?'c':'s',dates:s.dates,cells:(s.cells&&typeof s.cells==='object')?s.cells:{}};}}catch(e){}
-function cauSave(){try{localStorage.setItem('cauState',JSON.stringify(cauState));}catch(e){}}
-const CAU_MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-function cauFmt(iso){const d=new Date(iso+'T00:00');if(isNaN(d))return iso||'—';return d.getDate()+'-'+CAU_MON[d.getMonth()];}
-function cauCarry(fromIso,toIso){
-  const a=new Date(fromIso+'T00:00'),b=new Date(toIso+'T00:00');
-  if(isNaN(a)||isNaN(b))return null;
-  const days=Math.round((b-a)/86400000);
-  const r=(parseFloat(String(cauState.rate).replace(',','.'))||0)/100;
-  if(cauState.mode==='c')return Math.pow(1+r/365,days)-1;
-  return r*days/365;
+// ---------- Calculadora T+0 (T+1 a mano + caución -> T+0 justo, y caro/barato vs T+0 real) ----------
+let calcState={rate:'21.00',dias:'1',filter:'fija',sel:[],px:{},px0:{}};
+try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s==='object'){calcState={rate:s.rate!=null?String(s.rate):'21.00',dias:s.dias!=null?String(s.dias):'1',filter:s.filter||'fija',sel:Array.isArray(s.sel)?s.sel:[],px:(s.px&&typeof s.px==='object')?s.px:{},px0:(s.px0&&typeof s.px0==='object')?s.px0:{}};}}catch(e){}
+function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
+function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
+function calcFactor(){const r=(calcNum(calcState.rate)||0)/100;const d=Math.max(0,calcNum(calcState.dias)||0);return 1+r*d/365;}
+function calcJustoT0(tk){const p1=calcNum(calcState.px[tk]);if(p1==null)return null;const f=calcFactor();return f>0?p1/f:null;}
+function calcSig(tk){const justo=calcJustoT0(tk);const real=calcNum(calcState.px0[tk]);if(justo==null||real==null)return null;return{dif:(real/justo-1)*100};}
+function calcSigHtml(tk){const s=calcSig(tk);if(!s)return '<span class="muted">\u2014</span>';
+  if(Math.abs(s.dif)<0.0005)return '<span class="muted">justo</span>';
+  return s.dif>0?`<span class="calcbad">caro +${s.dif.toFixed(3)}%</span>`:`<span class="calcgood">barato ${s.dif.toFixed(3)}%</span>`;}
+function calcUniverse(){let rows=state.rows.filter(r=>!r.ref&&r.tk);if(calcState.filter!=='all')rows=rows.filter(r=>r.tipo===calcState.filter);return rows;}
+function renderCalcPick(){
+  const rows=calcUniverse();
+  document.querySelectorAll('#calcFiltros button').forEach(b=>b.classList.toggle('on',b.dataset.cf2===calcState.filter));
+  $("calcPick").innerHTML = rows.length? rows.map(r=>{const on=calcState.sel.includes(r.tk);return `<span class="calcchip ${on?'on':''}" data-tk="${r.tk}">${on?'\u2713 ':''}${r.tk}</span>`;}).join('') : '<span class="muted">Esperando la lista de instrumentos del sheet\u2026</span>';
+  $("calcPick").querySelectorAll('.calcchip').forEach(c=>c.onclick=()=>{const tk=c.dataset.tk;const i=calcState.sel.indexOf(tk);if(i>=0)calcState.sel.splice(i,1);else calcState.sel.push(tk);calcSave();renderCalc();});
 }
-function cauCellColor(inp){const n=parseFloat(String(inp.value).replace('%','').replace(',','.'));inp.classList.toggle('neg',isFinite(n)&&n<0);inp.classList.toggle('pos',isFinite(n)&&n>0);}
-function cauMatrix(){
-  const dates=cauState.dates; if(!cauState.cells)cauState.cells={}; const cells=cauState.cells;
-  $("cauchoHead").innerHTML='<th></th>'+dates.map(d=>`<th>${cauFmt(d)}</th>`).join('');
-  let body='';
-  for(let i=0;i<dates.length;i++){
-    let tds='';
-    for(let j=0;j<dates.length;j++){
-      if(i===j){tds+='<td class="caudiag">—</td>';continue;}
-      const val=(cells[i+'-'+j]!=null)?cells[i+'-'+j]:'';
-      tds+=`<td><input class="caucell" data-ij="${i}-${j}" value="${String(val).replace(/"/g,'&quot;')}" placeholder="—"></td>`;
-    }
-    body+=`<tr><th style="text-align:left">${cauFmt(dates[i])}</th>${tds}</tr>`;
-  }
-  $("cauchoBody").innerHTML=body;
-  $("cauchoBody").querySelectorAll('input.caucell').forEach(inp=>{
-    cauCellColor(inp);
-    inp.oninput=e=>{cauState.cells[e.target.dataset.ij]=e.target.value;cauSave();cauCellColor(e.target);};
+function calcRowRefresh(tr,tk){const j=calcJustoT0(tk);const jc=tr.querySelector('td.t0');if(jc)jc.textContent=j!=null?fmtN(j,3):'\u2014';const sc=tr.querySelector('td.sig');if(sc)sc.innerHTML=calcSigHtml(tk);}
+function calcMatrix(){
+  $("calcHead").innerHTML=['Ticker','P T+1 (vos)','P T+0 justo','P T+0 (vos)','\u00bfCaro/barato?'].map((h,i)=>`<th style="text-align:${i===0?'left':(i===2?'right':(i===4?'right':'right'))}">${h}</th>`).join('');
+  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="5" class="muted" style="padding:16px;text-align:center">Eleg\u00ed las lecaps arriba y carg\u00e1 el precio T+1 (y opcional el T+0 que te ofrecen).</td></tr>';return;}
+  $("calcBody").innerHTML=calcState.sel.map(tk=>{
+    const r1=calcState.px[tk],r0=calcState.px0[tk],j=calcJustoT0(tk);
+    return `<tr data-tk="${tk}"><td class="tk">${tk}</td>`+
+      `<td><input class="calcin" data-tk="${tk}" data-k="t1" inputmode="decimal" value="${r1!=null?String(r1).replace(/"/g,'&quot;'):''}" placeholder="\u2014"></td>`+
+      `<td class="t0">${j!=null?fmtN(j,3):'\u2014'}</td>`+
+      `<td><input class="calcin" data-tk="${tk}" data-k="t0" inputmode="decimal" value="${r0!=null?String(r0).replace(/"/g,'&quot;'):''}" placeholder="\u2014"></td>`+
+      `<td class="sig">${calcSigHtml(tk)}</td></tr>`;
+  }).join('');
+  $("calcBody").querySelectorAll('input.calcin').forEach(inp=>{
+    inp.oninput=e=>{const tk=e.target.dataset.tk,kk=e.target.dataset.k;(kk==='t1'?calcState.px:calcState.px0)[tk]=e.target.value;calcSave();calcRowRefresh(e.target.closest('tr'),tk);};
   });
 }
-function cauCalc(){
-  const dates=cauState.dates; cauState.cells={};
-  for(let i=0;i<dates.length;i++)for(let j=0;j<dates.length;j++){
-    if(i===j)continue; const v=cauCarry(dates[i],dates[j]);
-    if(v!==null)cauState.cells[i+'-'+j]=(v*100).toFixed(3)+'%';
-  }
-  cauSave();cauMatrix();
-}
-function cauClear(){cauState.cells={};cauSave();cauMatrix();}
-function renderCaucho(){
-  const de=$("cauDates");
-  de.innerHTML=cauState.dates.map((d,i)=>`<label>L${i+1}<input type="date" data-di="${i}" value="${d}"></label>`).join('');
-  de.querySelectorAll('input[type=date]').forEach(inp=>inp.onchange=e=>{cauState.dates[+e.target.dataset.di]=e.target.value;cauSave();cauMatrix();});
-  const rf=$("cauRate"); if(document.activeElement!==rf) rf.value=(parseFloat(String(cauState.rate).replace(',','.'))||0).toFixed(2);
-  document.querySelectorAll('#cauModeToggles button').forEach(b=>b.classList.toggle('on',b.dataset.caum===cauState.mode));
-  cauMatrix();
+function renderCalc(){
+  const rf=$("calcRate"); if(document.activeElement!==rf) rf.value=(calcNum(calcState.rate)||0).toFixed(2);
+  const df=$("calcDias"); if(document.activeElement!==df) df.value=String(calcState.dias);
+  renderCalcPick();
+  calcMatrix();
+  const c=(calcNum(calcState.rate)||0),d=Math.max(0,calcNum(calcState.dias)||0);
+  $("calcFoot").innerHTML=`<b>P T+0 justo = P T+1 \u00f7 (1 + cauci\u00f3n\u00d7d\u00edas/365)</b> \u00b7 con ${c.toFixed(2)}% y ${d} d\u00eda(s), factor \u00f7${calcFactor().toFixed(6)} \u00b7 pon\u00e9 el <b>T+1</b> y te da el <b>T+0 justo</b>; si adem\u00e1s carg\u00e1s el <b>T+0</b> que te ofrecen, te dice si est\u00e1 <span class="calcbad">caro</span> o <span class="calcgood">barato</span> vs ese justo (al rev\u00e9s: pon\u00e9 tu T+0 y el T+1 de mercado, mismo veredicto) \u00b7 se guarda todo.`;
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
-  ['graf','lista','comp','fwd','sint','caucho'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
+  ['graf','lista','comp','fwd','sint','calc'].forEach(t=>$("tab-"+t).classList.toggle('on',state.tab===t));
   if(state.tab==='graf'){renderChart();renderFondo();}
   if(state.tab==='comp')renderCompare();
   if(state.tab==='fwd')renderFwd();
   if(state.tab==='sint')renderSint();
-  if(state.tab==='caucho')renderCaucho();});
+  if(state.tab==='calc')renderCalc();});
 $("fwdA").onchange=e=>{state.fwdA=e.target.value;renderFwd();};
 $("fwdB").onchange=e=>{state.fwdB=e.target.value;renderFwd();};
 document.querySelectorAll('.toggles button[data-sy]').forEach(b=>b.onclick=()=>{state.synmetric=b.dataset.sy;document.querySelectorAll('.toggles button[data-sy]').forEach(x=>x.classList.toggle('on',x===b));renderSint();});
@@ -774,12 +760,10 @@ document.querySelectorAll('.toggles button[data-cf]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{state.cmetric=b.dataset.cm;document.querySelectorAll('.toggles button[data-cm]').forEach(x=>x.classList.toggle('on',x===b));renderChart3();});
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
-$("cauRate").oninput=e=>{cauState.rate=e.target.value;cauSave();cauMatrix();};
-$("cauRate").onblur=e=>{e.target.value=(parseFloat(String(cauState.rate).replace(',','.'))||0).toFixed(2);};
-document.querySelectorAll('#cauModeToggles button').forEach(b=>b.onclick=()=>{cauState.mode=b.dataset.caum;cauSave();document.querySelectorAll('#cauModeToggles button').forEach(x=>x.classList.toggle('on',x===b));cauMatrix();});
-$("cauReset").onclick=()=>{cauState.dates=CAU_DEFAULT_DATES.slice();cauSave();renderCaucho();};
-$("cauCalcBtn").onclick=()=>cauCalc();
-$("cauClearBtn").onclick=()=>cauClear();
+$("calcRate").oninput=e=>{calcState.rate=e.target.value;calcSave();renderCalc();};
+$("calcRate").onblur=e=>{e.target.value=(calcNum(calcState.rate)||0).toFixed(2);};
+$("calcDias").oninput=e=>{calcState.dias=e.target.value;calcSave();renderCalc();};
+document.querySelectorAll('#calcFiltros button').forEach(b=>b.onclick=()=>{calcState.filter=b.dataset.cf2;calcSave();renderCalc();});
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
 document.querySelectorAll('#plazoToggles button').forEach(b=>b.onclick=()=>setPlazo(b.dataset.st,true));
 // Bid/MID/Offer/reset de BONOS (Comparar) — botones .pxbond en Lista y Comparar
