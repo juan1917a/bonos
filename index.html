@@ -141,15 +141,13 @@
   .calcchip{padding:5px 11px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;user-select:none}
   .calcchip:hover{border-color:var(--faint)}
   .calcchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .calcin{width:104px;text-align:right;font:inherit;font-size:12.5px;font-variant-numeric:tabular-nums;padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--panel2);color:var(--text)}
+  .calcin{width:92px;text-align:right;font:inherit;font-size:12.5px;font-variant-numeric:tabular-nums;padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--panel2);color:var(--text)}
   .calcin:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
-  #calcTbl td.t0{color:var(--accent);font-weight:700;font-size:13.5px}
   #calcTbl td.cbid,#calcTbl td.coff{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
   #calcTbl td.cmid{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;font-size:12px}
-  #calcTbl td.lado{text-align:center}
-  .sidetog{display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
-  .sidetog button{border:none;background:var(--panel);color:var(--muted);font:inherit;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer}
-  .sidetog button.on{background:var(--accent);color:#fff}
+  #calcTbl td.imp{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
+  #calcTbl td.ccompra,#calcTbl td.cventa{font-size:11.5px;white-space:nowrap}
+  .calcedge{color:var(--muted);font-size:10.5px;font-weight:600}
   .calcbad{color:var(--down);font-weight:700} .calcgood{color:var(--up);font-weight:700}
 </style>
 </head>
@@ -288,8 +286,9 @@
       <div class="hd">
         <h2>Calculadora T+0 <span class="note">· poné T+1 y la caución → T+0 justo · caro/barato</span></h2>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <label class="caulbl">Caución TNA <input id="calcRate" class="pinput" style="width:70px" inputmode="decimal">%</label>
-          <label class="caulbl">Días <input id="calcDias" class="pinput" style="width:52px" inputmode="numeric"></label>
+          <label class="caulbl">Colocadora TNA <input id="calcColoc" class="pinput" style="width:62px" inputmode="decimal">%</label>
+          <label class="caulbl">Tomadora TNA <input id="calcTom" class="pinput" style="width:62px" inputmode="decimal">%</label>
+          <label class="caulbl">Días <input id="calcDias" class="pinput" style="width:48px" inputmode="numeric"></label>
           <div class="toggles" id="calcFiltros"><button data-cf2="fija" class="on">Fija</button><button data-cf2="cer">CER</button><button data-cf2="dual">Dual</button><button data-cf2="all">Todas</button></div>
         </div>
       </div>
@@ -707,20 +706,21 @@ async function refresh(manual){
   nextAt=state.refreshMs>0?Date.now()+state.refreshMs:Infinity;tickCd();}
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
-// ---------- Calculadora T+0 (T+1 a mano + caución -> T+0 justo, Bid/Offer/Mid en vivo, Compro/Vendo) ----------
-let calcState={rate:'21.00',dias:'1',filter:'fija',sel:[],px:{},px0:{},side:{}};
-try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s==='object'){calcState={rate:s.rate!=null?String(s.rate):'21.00',dias:s.dias!=null?String(s.dias):'1',filter:s.filter||'fija',sel:Array.isArray(s.sel)?s.sel:[],px:(s.px&&typeof s.px==='object')?s.px:{},px0:(s.px0&&typeof s.px0==='object')?s.px0:{},side:(s.side&&typeof s.side==='object')?s.side:{}};}}catch(e){}
+// ---------- Calculadora T+0 (arbitraje CI vs 24hs con caución colocadora/tomadora) ----------
+let calcState={coloc:'21.00',tom:'22.00',dias:'1',filter:'fija',sel:[],px:{},px0:{}};
+try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s==='object'){calcState={coloc:s.coloc!=null?String(s.coloc):(s.rate!=null?String(s.rate):'21.00'),tom:s.tom!=null?String(s.tom):'22.00',dias:s.dias!=null?String(s.dias):'1',filter:s.filter||'fija',sel:Array.isArray(s.sel)?s.sel:[],px:(s.px&&typeof s.px==='object')?s.px:{},px0:(s.px0&&typeof s.px0==='object')?s.px0:{}};}}catch(e){}
 function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
 function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
-function calcFactor(){const r=(calcNum(calcState.rate)||0)/100;const d=Math.max(0,calcNum(calcState.dias)||0);return 1+r*d/365;}
-function calcJustoT0(tk){const p1=calcNum(calcState.px[tk]);if(p1==null)return null;const f=calcFactor();return f>0?p1/f:null;}
-function calcSig(tk){const justo=calcJustoT0(tk);const real=calcNum(calcState.px0[tk]);if(justo==null||real==null)return null;return{dif:(real/justo-1)*100};}
-function calcSide(tk){return calcState.side[tk]==='vendo'?'vendo':'compro';}
-function calcSigHtml(tk){const s=calcSig(tk);if(!s)return '<span class="muted">—</span>';
-  const dif=s.dif,mag=Math.abs(dif).toFixed(3);
-  if(Math.abs(dif)<0.0005)return '<span class="muted">justo</span>';
-  if(calcSide(tk)==='vendo')return dif>0?`<span class="calcgood">vendé · alto +${mag}%</span>`:`<span class="calcbad">bajo -${mag}%</span>`;
-  return dif<0?`<span class="calcgood">comprá · barato -${mag}%</span>`:`<span class="calcbad">caro +${mag}%</span>`;}
+function calcImplicita(tk){const p0=calcNum(calcState.px0[tk]),p1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);if(p0==null||p1==null||p0<=0||d<=0)return null;return (p1/p0-1)*365/d*100;}
+function calcLegHtml(i,ref,legHi,legLo){
+  if(i==null||ref==null)return '<span class="muted">—</span>';
+  const dd=i-ref;
+  if(Math.abs(dd)<0.0005)return '<span class="muted">indistinto</span>';
+  const leg=dd>0?legHi:legLo, e=Math.abs(dd).toFixed(3);
+  return `<span class="calcgood">${leg}</span> <span class="calcedge">+${e}% TNA</span>`;
+}
+function calcCompraHtml(tk){return calcLegHtml(calcImplicita(tk),calcNum(calcState.coloc),'CI directo','T+1 + colocar');}
+function calcVentaHtml(tk){return calcLegHtml(calcImplicita(tk),calcNum(calcState.tom),'T+1 + tomar','CI directo');}
 function calcUniverse(){let rows=state.rows.filter(r=>!r.ref&&r.tk);if(calcState.filter!=='all')rows=rows.filter(r=>r.tipo===calcState.filter);return rows;}
 function renderCalcPick(){
   const rows=calcUniverse();
@@ -728,7 +728,12 @@ function renderCalcPick(){
   $("calcPick").innerHTML = rows.length? rows.map(r=>{const on=calcState.sel.includes(r.tk);return `<span class="calcchip ${on?'on':''}" data-tk="${r.tk}">${on?'✓ ':''}${r.tk}</span>`;}).join('') : '<span class="muted">Esperando la lista de instrumentos del sheet…</span>';
   $("calcPick").querySelectorAll('.calcchip').forEach(c=>c.onclick=()=>{const tk=c.dataset.tk;const i=calcState.sel.indexOf(tk);if(i>=0)calcState.sel.splice(i,1);else calcState.sel.push(tk);calcSave();renderCalc();});
 }
-function calcRowRefresh(tr,tk){const j=calcJustoT0(tk);const jc=tr.querySelector('td.t0');if(jc)jc.textContent=j!=null?fmtN(j,3):'—';const sc=tr.querySelector('td.sig');if(sc)sc.innerHTML=calcSigHtml(tk);}
+function calcRowRefresh(tr,tk){
+  const i=calcImplicita(tk);
+  const ic=tr.querySelector('td.imp'); if(ic)ic.textContent=i!=null?fmtN(i,2)+'%':'—';
+  const cc=tr.querySelector('td.ccompra'); if(cc)cc.innerHTML=calcCompraHtml(tk);
+  const vc=tr.querySelector('td.cventa'); if(vc)vc.innerHTML=calcVentaHtml(tk);
+}
 function calcLive(){
   if(!calcState.sel.length)return;
   const rows=$("calcBody").querySelectorAll('tr[data-tk]');
@@ -738,34 +743,34 @@ function calcLive(){
     set('cbid',p&&p.bid);set('coff',p&&p.offer);set('cmid',p&&p.mid);});
 }
 function calcMatrix(){
-  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','P T+1 (vos)','P T+0 justo','P T+0 (vos)','Lado','Señal'].map((h,i)=>`<th style="text-align:${i===0?'left':(i===7?'center':'right')}">${h}</th>`).join('');
-  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="9" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio T+1 (y opcional el T+0 que te ofrecen).</td></tr>';return;}
+  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','Implícita','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=7?'left':'right')}">${h}</th>`).join('');
+  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="9" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
   $("calcBody").innerHTML=calcState.sel.map(tk=>{
     const p=state.prices&&state.prices[tk];
-    const r1=calcState.px[tk],r0=calcState.px0[tk],j=calcJustoT0(tk),sd=calcSide(tk);
+    const ci=calcState.px0[tk],t1=calcState.px[tk],i=calcImplicita(tk);
     const pv=(v)=>(p&&v!=null&&isFinite(v))?fmtN(v,3):'—';
     return `<tr data-tk="${tk}"><td class="tk">${tk}</td>`+
       `<td class="cbid">${pv(p&&p.bid)}</td>`+
       `<td class="coff">${pv(p&&p.offer)}</td>`+
       `<td class="cmid">${pv(p&&p.mid)}</td>`+
-      `<td><input class="calcin" data-tk="${tk}" data-k="t1" inputmode="decimal" value="${r1!=null?String(r1).replace(/"/g,'&quot;'):''}" placeholder="—"></td>`+
-      `<td class="t0">${j!=null?fmtN(j,3):'—'}</td>`+
-      `<td><input class="calcin" data-tk="${tk}" data-k="t0" inputmode="decimal" value="${r0!=null?String(r0).replace(/"/g,'&quot;'):''}" placeholder="—"></td>`+
-      `<td class="lado"><div class="sidetog" data-tk="${tk}"><button data-side="compro" class="${sd==='compro'?'on':''}">Compro</button><button data-side="vendo" class="${sd==='vendo'?'on':''}">Vendo</button></div></td>`+
-      `<td class="sig">${calcSigHtml(tk)}</td></tr>`;
+      `<td><input class="calcin" data-tk="${tk}" data-k="ci" inputmode="decimal" value="${ci!=null?String(ci).replace(/"/g,'&quot;'):''}" placeholder="CI"></td>`+
+      `<td><input class="calcin" data-tk="${tk}" data-k="t1" inputmode="decimal" value="${t1!=null?String(t1).replace(/"/g,'&quot;'):''}" placeholder="24h"></td>`+
+      `<td class="imp">${i!=null?fmtN(i,2)+'%':'—'}</td>`+
+      `<td class="ccompra">${calcCompraHtml(tk)}</td>`+
+      `<td class="cventa">${calcVentaHtml(tk)}</td></tr>`;
   }).join('');
   $("calcBody").querySelectorAll('input.calcin').forEach(inp=>{
     inp.oninput=e=>{const tk=e.target.dataset.tk,kk=e.target.dataset.k;(kk==='t1'?calcState.px:calcState.px0)[tk]=e.target.value;calcSave();calcRowRefresh(e.target.closest('tr'),tk);};
   });
-  $("calcBody").querySelectorAll('.sidetog').forEach(tg=>{tg.querySelectorAll('button').forEach(b=>b.onclick=()=>{const tk=tg.dataset.tk;calcState.side[tk]=b.dataset.side;calcSave();tg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));calcRowRefresh(b.closest('tr'),tk);});});
 }
 function renderCalc(){
-  const rf=$("calcRate"); if(document.activeElement!==rf) rf.value=(calcNum(calcState.rate)||0).toFixed(2);
-  const df=$("calcDias"); if(document.activeElement!==df) df.value=String(calcState.dias);
+  const cf=$("calcColoc"); if(cf&&document.activeElement!==cf) cf.value=(calcNum(calcState.coloc)||0).toFixed(2);
+  const tf=$("calcTom"); if(tf&&document.activeElement!==tf) tf.value=(calcNum(calcState.tom)||0).toFixed(2);
+  const df=$("calcDias"); if(df&&document.activeElement!==df) df.value=String(calcState.dias);
   renderCalcPick();
   calcMatrix();
-  const c=(calcNum(calcState.rate)||0),d=Math.max(0,calcNum(calcState.dias)||0);
-  $("calcFoot").innerHTML=`<b>P T+0 justo = P T+1 ÷ (1 + caución×días/365)</b> · con ${c.toFixed(2)}% y ${d} día(s), factor ÷${calcFactor().toFixed(6)} · Bid/Offer/Mid del sheet en vivo · poné el <b>T+1</b> → <b>T+0 justo</b>; cargá el <b>T+0</b> que te ofrecen y elegí <b>Compro/Vendo</b> por fila: comprando conviene <span class="calcgood">barato</span>, vendiendo conviene que te paguen <span class="calcgood">alto</span> · se guarda todo.`;
+  const c=(calcNum(calcState.coloc)||0),t=(calcNum(calcState.tom)||0),d=Math.max(0,calcNum(calcState.dias)||0);
+  $("calcFoot").innerHTML=`<b>Implícita = (T+1 ÷ CI − 1) × 365/días</b> · colocadora ${c.toFixed(2)}% / tomadora ${t.toFixed(2)}% · ${d} día(s). <b>Compra:</b> si la implícita supera la colocadora conviene <span class="calcgood">CI directo</span>, si no <span class="calcgood">T+1 + colocar caución</span>. <b>Venta:</b> si supera la tomadora conviene <span class="calcgood">T+1 + tomar caución</span>, si no <span class="calcgood">CI directo</span>. El +% es la ventaja en TNA por elegir bien · si la implícita queda entre las dos tasas, CI directo en ambas · se guarda todo.`;
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
@@ -784,8 +789,10 @@ document.querySelectorAll('.toggles button[data-cf]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{state.cmetric=b.dataset.cm;document.querySelectorAll('.toggles button[data-cm]').forEach(x=>x.classList.toggle('on',x===b));renderChart3();});
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
-$("calcRate").oninput=e=>{calcState.rate=e.target.value;calcSave();renderCalc();};
-$("calcRate").onblur=e=>{e.target.value=(calcNum(calcState.rate)||0).toFixed(2);};
+$("calcColoc").oninput=e=>{calcState.coloc=e.target.value;calcSave();renderCalc();};
+$("calcColoc").onblur=e=>{e.target.value=(calcNum(calcState.coloc)||0).toFixed(2);};
+$("calcTom").oninput=e=>{calcState.tom=e.target.value;calcSave();renderCalc();};
+$("calcTom").onblur=e=>{e.target.value=(calcNum(calcState.tom)||0).toFixed(2);};
 $("calcDias").oninput=e=>{calcState.dias=e.target.value;calcSave();renderCalc();};
 document.querySelectorAll('#calcFiltros button').forEach(b=>b.onclick=()=>{calcState.filter=b.dataset.cf2;calcSave();renderCalc();});
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
