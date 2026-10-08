@@ -148,6 +148,7 @@
   #calcTbl td.imp{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
   #calcTbl td.ccompra,#calcTbl td.cventa{font-size:11.5px;white-space:nowrap}
   .calcedge{color:var(--muted);font-size:10.5px;font-weight:600}
+  .calcleg{color:var(--text);font-size:11px;font-weight:600}
   .calcbad{color:var(--down);font-weight:700} .calcgood{color:var(--up);font-weight:700}
 </style>
 </head>
@@ -712,15 +713,18 @@ try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s
 function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
 function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
 function calcImplicita(tk){const p0=calcNum(calcState.px0[tk]),p1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);if(p0==null||p1==null||p0<=0||d<=0)return null;return (p1/p0-1)*365/d*100;}
-function calcLegHtml(i,ref,legHi,legLo){
+function calcCell(i,ref,side){
   if(i==null||ref==null)return '<span class="muted">—</span>';
   const dd=i-ref;
-  if(Math.abs(dd)<0.0005)return '<span class="muted">indistinto</span>';
-  const leg=dd>0?legHi:legLo, e=Math.abs(dd).toFixed(3);
-  return `<span class="calcgood">${leg}</span> <span class="calcedge">+${e}% TNA</span>`;
+  if(Math.abs(dd)<0.0005)return '<span class="muted">CI justo · indistinto</span>';
+  const barato=dd>0, e=Math.abs(dd).toFixed(3);
+  const good = side==='compra' ? barato : !barato;
+  const label = barato?'CI barato':'CI caro';
+  const leg = side==='compra' ? (barato?'CI directo':'T+1 + colocar') : (barato?'T+1 + tomar':'CI directo');
+  return `<span class="${good?'calcgood':'calcbad'}">${label}</span> <span class="calcleg">${leg}</span> <span class="calcedge">+${e}% TNA</span>`;
 }
-function calcCompraHtml(tk){return calcLegHtml(calcImplicita(tk),calcNum(calcState.coloc),'CI directo','T+1 + colocar');}
-function calcVentaHtml(tk){return calcLegHtml(calcImplicita(tk),calcNum(calcState.tom),'T+1 + tomar','CI directo');}
+function calcCompraHtml(tk){return calcCell(calcImplicita(tk),calcNum(calcState.coloc),'compra');}
+function calcVentaHtml(tk){return calcCell(calcImplicita(tk),calcNum(calcState.tom),'venta');}
 function calcUniverse(){let rows=state.rows.filter(r=>!r.ref&&r.tk);if(calcState.filter!=='all')rows=rows.filter(r=>r.tipo===calcState.filter);return rows;}
 function renderCalcPick(){
   const rows=calcUniverse();
