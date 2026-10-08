@@ -149,6 +149,9 @@
   #calcTbl td.ccompra,#calcTbl td.cventa{font-size:11.5px;white-space:nowrap}
   .calcedge{color:var(--muted);font-size:10.5px;font-weight:600}
   .calcleg{color:var(--text);font-size:11px;font-weight:600}
+  #calcTbl td.cjust{text-align:right}
+  .cjrow{display:block;font-variant-numeric:tabular-nums;font-size:11.5px;line-height:1.35}
+  .cjl{color:var(--muted);font-size:9.5px;margin-right:4px;text-transform:uppercase;letter-spacing:.03em}
   .calcbad{color:var(--down);font-weight:700} .calcgood{color:var(--up);font-weight:700}
 </style>
 </head>
@@ -713,6 +716,12 @@ try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s
 function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
 function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
 function calcImplicita(tk){const p0=calcNum(calcState.px0[tk]),p1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);if(p0==null||p1==null||p0<=0||d<=0)return null;return (p1/p0-1)*365/d*100;}
+function calcCIjusto(tk,rate){const t1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);const r=calcNum(rate);if(t1==null||r==null)return null;const f=1+r/100*d/365;return f>0?t1/f:null;}
+function calcJustoHtml(tk){
+  const jc=calcCIjusto(tk,calcState.coloc), jv=calcCIjusto(tk,calcState.tom);
+  if(jc==null&&jv==null)return '<span class="muted">—</span>';
+  return `<span class="cjrow"><span class="cjl">compra</span>${jc!=null?fmtN(jc,3):'—'}</span><span class="cjrow"><span class="cjl">venta</span>${jv!=null?fmtN(jv,3):'—'}</span>`;
+}
 function calcCell(i,ref,side){
   if(i==null||ref==null)return '<span class="muted">—</span>';
   const dd=i-ref;
@@ -734,6 +743,7 @@ function renderCalcPick(){
 }
 function calcRowRefresh(tr,tk){
   const i=calcImplicita(tk);
+  const jcc=tr.querySelector('td.cjust'); if(jcc)jcc.innerHTML=calcJustoHtml(tk);
   const ic=tr.querySelector('td.imp'); if(ic)ic.textContent=i!=null?fmtN(i,2)+'%':'—';
   const cc=tr.querySelector('td.ccompra'); if(cc)cc.innerHTML=calcCompraHtml(tk);
   const vc=tr.querySelector('td.cventa'); if(vc)vc.innerHTML=calcVentaHtml(tk);
@@ -747,8 +757,8 @@ function calcLive(){
     set('cbid',p&&p.bid);set('coff',p&&p.offer);set('cmid',p&&p.mid);});
 }
 function calcMatrix(){
-  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','Implícita','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=7?'left':'right')}">${h}</th>`).join('');
-  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="9" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
+  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','CI justo','Implícita','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=8?'left':'right')}">${h}</th>`).join('');
+  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="10" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
   $("calcBody").innerHTML=calcState.sel.map(tk=>{
     const p=state.prices&&state.prices[tk];
     const ci=calcState.px0[tk],t1=calcState.px[tk],i=calcImplicita(tk);
@@ -759,6 +769,7 @@ function calcMatrix(){
       `<td class="cmid">${pv(p&&p.mid)}</td>`+
       `<td><input class="calcin" data-tk="${tk}" data-k="ci" inputmode="decimal" value="${ci!=null?String(ci).replace(/"/g,'&quot;'):''}" placeholder="CI"></td>`+
       `<td><input class="calcin" data-tk="${tk}" data-k="t1" inputmode="decimal" value="${t1!=null?String(t1).replace(/"/g,'&quot;'):''}" placeholder="24h"></td>`+
+      `<td class="cjust">${calcJustoHtml(tk)}</td>`+
       `<td class="imp">${i!=null?fmtN(i,2)+'%':'—'}</td>`+
       `<td class="ccompra">${calcCompraHtml(tk)}</td>`+
       `<td class="cventa">${calcVentaHtml(tk)}</td></tr>`;
