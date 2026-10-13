@@ -722,18 +722,18 @@ function calcJustoHtml(tk){
   if(jc==null&&jv==null)return '<span class="muted">—</span>';
   return `<span class="cjrow"><span class="cjl">compra</span>${jc!=null?fmtN(jc,3):'—'}</span><span class="cjrow"><span class="cjl">venta</span>${jv!=null?fmtN(jv,3):'—'}</span>`;
 }
-function calcCell(i,ref,side){
-  if(i==null||ref==null)return '<span class="muted">—</span>';
-  const dd=i-ref;
-  if(Math.abs(dd)<0.0005)return '<span class="muted">CI justo · indistinto</span>';
-  const barato=dd>0, e=Math.abs(dd).toFixed(3);
+function calcCell(tk,side){
+  const ci=calcNum(calcState.px0[tk]);
+  const ref=calcCIjusto(tk, side==='compra'?calcState.coloc:calcState.tom);
+  if(ci==null||ref==null)return '<span class="muted">—</span>';
+  const gap=(ci/ref-1)*100, mag=Math.abs(gap).toFixed(3);
+  if(Math.abs(gap)<0.0005)return '<span class="muted">justo</span>';
+  const barato = ci<ref;
   const good = side==='compra' ? barato : !barato;
-  const label = barato?'CI barato':'CI caro';
-  const leg = side==='compra' ? (barato?'CI directo':'T+1 + colocar') : (barato?'T+1 + tomar':'CI directo');
-  return `<span class="${good?'calcgood':'calcbad'}">${label}</span> <span class="calcleg">${leg}</span> <span class="calcedge">+${e}% TNA</span>`;
+  return `<span class="${good?'calcgood':'calcbad'}">${barato?'barato':'caro'} ${mag}%</span>`;
 }
-function calcCompraHtml(tk){return calcCell(calcImplicita(tk),calcNum(calcState.coloc),'compra');}
-function calcVentaHtml(tk){return calcCell(calcImplicita(tk),calcNum(calcState.tom),'venta');}
+function calcCompraHtml(tk){return calcCell(tk,'compra');}
+function calcVentaHtml(tk){return calcCell(tk,'venta');}
 function calcUniverse(){let rows=state.rows.filter(r=>!r.ref&&r.tk);if(calcState.filter!=='all')rows=rows.filter(r=>r.tipo===calcState.filter);return rows;}
 function renderCalcPick(){
   const rows=calcUniverse();
@@ -744,7 +744,6 @@ function renderCalcPick(){
 function calcRowRefresh(tr,tk){
   const i=calcImplicita(tk);
   const jcc=tr.querySelector('td.cjust'); if(jcc)jcc.innerHTML=calcJustoHtml(tk);
-  const ic=tr.querySelector('td.imp'); if(ic)ic.textContent=i!=null?fmtN(i,2)+'%':'—';
   const cc=tr.querySelector('td.ccompra'); if(cc)cc.innerHTML=calcCompraHtml(tk);
   const vc=tr.querySelector('td.cventa'); if(vc)vc.innerHTML=calcVentaHtml(tk);
 }
@@ -757,8 +756,8 @@ function calcLive(){
     set('cbid',p&&p.bid);set('coff',p&&p.offer);set('cmid',p&&p.mid);});
 }
 function calcMatrix(){
-  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','CI justo','Implícita','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=8?'left':'right')}">${h}</th>`).join('');
-  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="10" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
+  $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','CI justo','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=7?'left':'right')}">${h}</th>`).join('');
+  if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="9" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
   $("calcBody").innerHTML=calcState.sel.map(tk=>{
     const p=state.prices&&state.prices[tk];
     const ci=calcState.px0[tk],t1=calcState.px[tk],i=calcImplicita(tk);
@@ -770,7 +769,6 @@ function calcMatrix(){
       `<td><input class="calcin" data-tk="${tk}" data-k="ci" inputmode="decimal" value="${ci!=null?String(ci).replace(/"/g,'&quot;'):''}" placeholder="CI"></td>`+
       `<td><input class="calcin" data-tk="${tk}" data-k="t1" inputmode="decimal" value="${t1!=null?String(t1).replace(/"/g,'&quot;'):''}" placeholder="24h"></td>`+
       `<td class="cjust">${calcJustoHtml(tk)}</td>`+
-      `<td class="imp">${i!=null?fmtN(i,2)+'%':'—'}</td>`+
       `<td class="ccompra">${calcCompraHtml(tk)}</td>`+
       `<td class="cventa">${calcVentaHtml(tk)}</td></tr>`;
   }).join('');
@@ -785,7 +783,7 @@ function renderCalc(){
   renderCalcPick();
   calcMatrix();
   const c=(calcNum(calcState.coloc)||0),t=(calcNum(calcState.tom)||0),d=Math.max(0,calcNum(calcState.dias)||0);
-  $("calcFoot").innerHTML=`<b>Implícita = (T+1 ÷ CI − 1) × 365/días</b> · colocadora ${c.toFixed(2)}% / tomadora ${t.toFixed(2)}% · ${d} día(s). <b>Compra:</b> si la implícita supera la colocadora conviene <span class="calcgood">CI directo</span>, si no <span class="calcgood">T+1 + colocar caución</span>. <b>Venta:</b> si supera la tomadora conviene <span class="calcgood">T+1 + tomar caución</span>, si no <span class="calcgood">CI directo</span>. El +% es la ventaja en TNA por elegir bien · si la implícita queda entre las dos tasas, CI directo en ambas · se guarda todo.`;
+  $("calcFoot").innerHTML=`<b>CI justo = T+1 ÷ (1 + caución × días/365)</b> · colocadora ${c.toFixed(2)}% (compra) / tomadora ${t.toFixed(2)}% (venta) · ${d} día(s) · cargá CI y T+1 a mano. <b>Compra:</b> CI por debajo del justo = <span class="calcgood">barato</span> (conviene comprar), por encima = <span class="calcbad">caro</span>. <b>Venta:</b> CI por encima del justo = <span class="calcgood">caro</span> (conviene vender), por debajo = <span class="calcbad">barato</span>. El % es la distancia al CI justo · se guarda todo.`;
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
