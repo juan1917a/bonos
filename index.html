@@ -123,7 +123,7 @@
   .selbox{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle}
   .bestpill{display:inline-block;background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up);border-radius:7px;padding:2px 8px;font-weight:700}
   .temhl{font-size:8.5px;color:var(--muted);font-weight:700;letter-spacing:.02em}
-  #compBody td.tem12{color:var(--muted);font-variant-numeric:tabular-nums}
+  #compBody td.tem12{color:var(--text);font-variant-numeric:tabular-nums}
   /* par cer / fwd */
   .fwdpick{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:14px;padding:8px 18px 4px}
   .fwdpick .fld{display:flex;flex-direction:column;gap:6px}
@@ -559,13 +559,13 @@ function compAll(){return state.rows.filter(r=>!r.ref&&state.prices[r.tk.toUpper
   const p=state.prices[r.tk.toUpperCase()];const FV=fv(r);const cur=state.edits[r.tk]!=null?state.edits[r.tk]:p.mid;
   const rt=(FV&&cur>0)?rates(FV,cur,r.dias):null;return{r,p,cur,rt};});}
 function bestSel(data){const sel=data.filter(d=>state.compare.has(d.r.tk)&&d.rt);
-  return{mt:sel.length?Math.max(...sel.map(d=>d.rt.tem)):null,ma:sel.length?Math.max(...sel.map(d=>d.rt.tea)):null};}
+  return{mt:sel.length?Math.max(...sel.map(d=>d.rt.tem)):null,ma:sel.length?Math.max(...sel.map(d=>d.rt.tea)):null,m12:sel.length?Math.max(...sel.map(d=>(Math.pow(1+d.rt.tea/100,1/12)-1)*100)):null};}
 function temCell(d,mt){const sel=state.compare.has(d.r.tk);return d.rt?(sel&&d.rt.tem===mt?`<span class="bestpill">${d.rt.tem.toFixed(3)}%</span>`:d.rt.tem.toFixed(3)+'%'):'—';}
-function tem12Cell(d){return d.rt?((Math.pow(1+d.rt.tea/100,1/12)-1)*100).toFixed(3)+'%':'—';}
+function tem12Cell(d,m12){if(!d.rt)return '—';const v=(Math.pow(1+d.rt.tea/100,1/12)-1)*100;const sel=state.compare.has(d.r.tk);return sel&&v===m12?`<span class="bestpill">${v.toFixed(3)}%</span>`:v.toFixed(3)+'%';}
 function teaCell(d,ma){const sel=state.compare.has(d.r.tk);return d.rt?(sel&&d.rt.tea===ma?`<span class="bestpill">${d.rt.tea.toFixed(3)}%</span>`:d.rt.tea.toFixed(3)+'%'):'—';}
 function updateCompareCol(tk){
-  const data=compAll();const {mt,ma}=bestSel(data);
-  data.forEach(d=>{const te=$("ctem-"+d.r.tk),ta=$("ctea-"+d.r.tk),t12=$("ctem12-"+d.r.tk);if(te)te.innerHTML=temCell(d,mt);if(ta)ta.innerHTML=teaCell(d,ma);if(t12)t12.innerHTML=tem12Cell(d);});
+  const data=compAll();const {mt,ma,m12}=bestSel(data);
+  data.forEach(d=>{const te=$("ctem-"+d.r.tk),ta=$("ctea-"+d.r.tk),t12=$("ctem12-"+d.r.tk);if(te)te.innerHTML=temCell(d,mt);if(ta)ta.innerHTML=teaCell(d,ma);if(t12)t12.innerHTML=tem12Cell(d,m12);});
   const inp=$("cin-"+tk),p0=state.prices[tk.toUpperCase()];
   if(inp&&p0)inp.classList.toggle("edited",state.edits[tk]!=null&&Math.abs(state.edits[tk]-p0.mid)>1e-9);
   renderChart3();
@@ -578,7 +578,7 @@ function renderCompare(){
   $("selNone").onclick=()=>{state.compare.clear();renderCompare();renderChart();};
   const H=["","Activo","Mi precio","MID","Bid","Offer","TEM <span class='temhl'>30/365</span>","TEM <span class='temhl'>1/12</span>","TEA","McD","Días"];
   $("compHead").innerHTML=H.map((t,i)=>`<th style="${i<2?'text-align:left':''}">${t}</th>`).join("");
-  const {mt,ma}=bestSel(data);
+  const {mt,ma,m12}=bestSel(data);
   $("compBody").innerHTML=data.map(d=>{const r=d.r;const sel=state.compare.has(r.tk);
     const edited=state.edits[r.tk]!=null&&Math.abs(state.edits[r.tk]-d.p.mid)>1e-9;
     return `<tr class="${sel?'sel':''}" data-tk="${r.tk}">
@@ -589,7 +589,7 @@ function renderCompare(){
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.bid??''}">${d.p.bid==null?'—':fmtN(d.p.bid)}</td>
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.offer??''}">${d.p.offer==null?'—':fmtN(d.p.offer)}</td>
       <td id="ctem-${r.tk}" style="font-weight:650">${temCell(d,mt)}</td>
-      <td id="ctem12-${r.tk}" class="tem12" style="font-weight:650">${tem12Cell(d)}</td>
+      <td id="ctem12-${r.tk}" class="tem12" style="font-weight:650">${tem12Cell(d,m12)}</td>
       <td id="ctea-${r.tk}" style="font-weight:650">${teaCell(d,ma)}</td>
       <td>${fmtN(r.md)}</td><td>${r.dias}</td></tr>`;}).join("");
   $("compBody").querySelectorAll("input.selbox").forEach(cb=>cb.addEventListener("change",()=>{const tk=cb.dataset.tk;cb.checked?state.compare.add(tk):state.compare.delete(tk);renderCompare();renderChart();}));
