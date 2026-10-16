@@ -561,10 +561,11 @@ function compAll(){return state.rows.filter(r=>!r.ref&&state.prices[r.tk.toUpper
 function bestSel(data){const sel=data.filter(d=>state.compare.has(d.r.tk)&&d.rt);
   return{mt:sel.length?Math.max(...sel.map(d=>d.rt.tem)):null,ma:sel.length?Math.max(...sel.map(d=>d.rt.tea)):null};}
 function temCell(d,mt){const sel=state.compare.has(d.r.tk);return d.rt?(sel&&d.rt.tem===mt?`<span class="bestpill">${d.rt.tem.toFixed(3)}%</span>`:d.rt.tem.toFixed(3)+'%'):'—';}
+function tem12Cell(d){return d.rt?((Math.pow(1+d.rt.tea/100,1/12)-1)*100).toFixed(3)+'%':'—';}
 function teaCell(d,ma){const sel=state.compare.has(d.r.tk);return d.rt?(sel&&d.rt.tea===ma?`<span class="bestpill">${d.rt.tea.toFixed(3)}%</span>`:d.rt.tea.toFixed(3)+'%'):'—';}
 function updateCompareCol(tk){
   const data=compAll();const {mt,ma}=bestSel(data);
-  data.forEach(d=>{const te=$("ctem-"+d.r.tk),ta=$("ctea-"+d.r.tk);if(te)te.innerHTML=temCell(d,mt);if(ta)ta.innerHTML=teaCell(d,ma);});
+  data.forEach(d=>{const te=$("ctem-"+d.r.tk),ta=$("ctea-"+d.r.tk),t12=$("ctem12-"+d.r.tk);if(te)te.innerHTML=temCell(d,mt);if(ta)ta.innerHTML=teaCell(d,ma);if(t12)t12.innerHTML=tem12Cell(d);});
   const inp=$("cin-"+tk),p0=state.prices[tk.toUpperCase()];
   if(inp&&p0)inp.classList.toggle("edited",state.edits[tk]!=null&&Math.abs(state.edits[tk]-p0.mid)>1e-9);
   renderChart3();
@@ -588,7 +589,7 @@ function renderCompare(){
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.bid??''}">${d.p.bid==null?'—':fmtN(d.p.bid)}</td>
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.offer??''}">${d.p.offer==null?'—':fmtN(d.p.offer)}</td>
       <td id="ctem-${r.tk}" style="font-weight:650">${temCell(d,mt)}</td>
-      <td id="ctem12-${r.tk}" class="tem12" style="font-weight:650">${d.r.tem!=null&&!isNaN(d.r.tem)?d.r.tem.toFixed(3)+'%':'—'}</td>
+      <td id="ctem12-${r.tk}" class="tem12" style="font-weight:650">${tem12Cell(d)}</td>
       <td id="ctea-${r.tk}" style="font-weight:650">${teaCell(d,ma)}</td>
       <td>${fmtN(r.md)}</td><td>${r.dias}</td></tr>`;}).join("");
   $("compBody").querySelectorAll("input.selbox").forEach(cb=>cb.addEventListener("change",()=>{const tk=cb.dataset.tk;cb.checked?state.compare.add(tk):state.compare.delete(tk);renderCompare();renderChart();}));
