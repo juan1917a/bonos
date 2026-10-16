@@ -122,6 +122,8 @@
   #compTbl th:first-child,#compTbl td:first-child{text-align:center}
   .selbox{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle}
   .bestpill{display:inline-block;background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up);border-radius:7px;padding:2px 8px;font-weight:700}
+  .temhl{font-size:8.5px;color:var(--muted);font-weight:700;letter-spacing:.02em}
+  #compBody td.tem12{color:var(--muted);font-variant-numeric:tabular-nums}
   /* par cer / fwd */
   .fwdpick{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:14px;padding:8px 18px 4px}
   .fwdpick .fld{display:flex;flex-direction:column;gap:6px}
@@ -573,7 +575,7 @@ function renderCompare(){
     <button id="selAll" style="margin-left:auto">Todos</button><button id="selNone">Ninguno</button>`;
   $("selAll").onclick=()=>{data.forEach(d=>state.compare.add(d.r.tk));renderCompare();renderChart();};
   $("selNone").onclick=()=>{state.compare.clear();renderCompare();renderChart();};
-  const H=["","Activo","Mi precio","MID","Bid","Offer","TEM","TEA","McD","Días"];
+  const H=["","Activo","Mi precio","MID","Bid","Offer","TEM <span class='temhl'>30/365</span>","TEM <span class='temhl'>1/12</span>","TEA","McD","Días"];
   $("compHead").innerHTML=H.map((t,i)=>`<th style="${i<2?'text-align:left':''}">${t}</th>`).join("");
   const {mt,ma}=bestSel(data);
   $("compBody").innerHTML=data.map(d=>{const r=d.r;const sel=state.compare.has(r.tk);
@@ -586,6 +588,7 @@ function renderCompare(){
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.bid??''}">${d.p.bid==null?'—':fmtN(d.p.bid)}</td>
       <td class="prcell" data-tk="${r.tk}" data-v="${d.p.offer??''}">${d.p.offer==null?'—':fmtN(d.p.offer)}</td>
       <td id="ctem-${r.tk}" style="font-weight:650">${temCell(d,mt)}</td>
+      <td id="ctem12-${r.tk}" class="tem12" style="font-weight:650">${d.r.tem!=null&&!isNaN(d.r.tem)?d.r.tem.toFixed(3)+'%':'—'}</td>
       <td id="ctea-${r.tk}" style="font-weight:650">${teaCell(d,ma)}</td>
       <td>${fmtN(r.md)}</td><td>${r.dias}</td></tr>`;}).join("");
   $("compBody").querySelectorAll("input.selbox").forEach(cb=>cb.addEventListener("change",()=>{const tk=cb.dataset.tk;cb.checked?state.compare.add(tk):state.compare.delete(tk);renderCompare();renderChart();}));
