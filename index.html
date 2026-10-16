@@ -232,7 +232,7 @@
         <h2>Comparar <span class="note">· elegí activos → TEM/TEA lado a lado, con tu precio</span></h2>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div class="toggles"><button class="pxbond" data-px="bid">Bid</button><button class="pxbond" data-px="mid">MID</button><button class="pxbond" data-px="offer">Offer</button><button class="pxbond" data-px="reset">reset</button></div>
-          <div class="toggles"><button data-cm="tem">TEM</button><button data-cm="tea" class="on">TEA</button></div>
+          <div class="toggles"><button data-cm="tem">TEM 30/365</button><button data-cm="tem12">TEM 1/12</button><button data-cm="tea" class="on">TEA</button></div>
         </div>
       </div>
       <div id="compChips" style="display:flex;align-items:center;gap:8px;padding:0 18px 12px"></div>
@@ -431,7 +431,7 @@ const fmtN=(v,d=2)=>v==null||isNaN(v)?"—":v.toFixed(d);
 function varTag(v){if(v==null||isNaN(v))return"";const a=v>0?"↑":(v<0?"↓":"·");const c=v>0?"vpx-up":(v<0?"vpx-dn":"vpx-0");
   return `<span class="vpx ${c}" title="variación vs último precio">${a} ${Math.abs(v).toFixed(2)}%</span>`;}
 function fv(row){const p=state.prices[row.tk.toUpperCase()];if(!p||row.tea==null||!row.dias)return null;return p.mid*Math.pow(1+row.tea/100,row.dias/365);}
-function rates(FV,P,dias){const r=FV/P;return{tea:(Math.pow(r,365/dias)-1)*100,tem:(Math.pow(r,30/dias)-1)*100};}
+function rates(FV,P,dias){const r=FV/P;return{tea:(Math.pow(r,365/dias)-1)*100,tem:(Math.pow(r,30/dias)-1)*100,tem12:(Math.pow(r,365/(12*dias))-1)*100};}
 function smooth(P){if(P.length<2)return"";if(P.length===2)return `M${P[0].x} ${P[0].y} L${P[1].x} ${P[1].y}`;
   let d=`M${P[0].x.toFixed(1)} ${P[0].y.toFixed(1)}`;
   for(let i=0;i<P.length-1;i++){const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||P[i+1];
@@ -526,10 +526,10 @@ function renderFondo(){
     tip:r=>`<b>${r.tk}</b><div class="r"><span>${YL}</span><span>${fmtP(r[k])}</span></div><div class="r"><span>McD · días</span><span>${fmtN(r.md)} · ${r.dias}</span></div>`});
 }
 function renderChart3(){
-  const k=state.cmetric;const rows=compData().map(c=>Object.assign({},c.r,{_v:c.rt?c.rt[k]:null}));
+  const k=state.cmetric;const KL={tem:"TEM 30/365",tem12:"TEM 1/12",tea:"TEA"}[k]||k.toUpperCase();const rows=compData().map(c=>Object.assign({},c.r,{_v:c.rt?c.rt[k]:null}));
   scatterChart("chart3",rows,r=>r.md,r=>r._v,{h:320,line:true,labels:true,big:true,
-    xlabel:"McD · modified duration",ylabel:k.toUpperCase()+" (%) · con tu precio",yfmt:pctFmt(k==='tem'?2:1),xfmt:v=>v.toFixed(2),
-    tip:r=>`<b>${r.tk}</b> <span class="muted" style="font-size:10.5px">${TYPE_LBL[r.tipo]}</span><div class="r"><span>${k.toUpperCase()}</span><span>${r._v==null?'—':r._v.toFixed(3)+'%'}</span></div>`});
+    xlabel:"McD · modified duration",ylabel:KL+" (%) · con tu precio",yfmt:pctFmt(k==='tea'?1:2),xfmt:v=>v.toFixed(2),
+    tip:r=>`<b>${r.tk}</b> <span class="muted" style="font-size:10.5px">${TYPE_LBL[r.tipo]}</span><div class="r"><span>${KL}</span><span>${r._v==null?'—':r._v.toFixed(3)+'%'}</span></div>`});
 }
 
 // ---------- Lista & Pricer ----------
