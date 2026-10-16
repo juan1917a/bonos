@@ -193,7 +193,7 @@
       <div class="hd">
         <h2>Curva — Local Nominal</h2>
         <div style="display:flex;align-items:center">
-          <div class="toggles"><button data-y="tem" class="on">TEM</button><button data-y="tea">TEA</button><button data-y="tna30">TNA</button></div>
+          <div class="toggles"><button data-y="tem" class="on">TEM 1/12</button><button data-y="tem30">TEM 30/365</button><button data-y="tea">TEA</button><button data-y="tna30">TNA</button></div>
           <div class="toggles sep"><button data-x="md" class="on">McD</button><button data-x="dias">Días</button></div>
         </div>
       </div>
@@ -397,7 +397,7 @@ async function load(){
   for(let i=6;i<grid.length;i++){const g=grid[i];if(!g)continue;
     const tk=(g[CL.tk]||"").trim();const tea=pct(g[CL.tea]);if(!tk||tea==null)continue;
     const key=tk.toUpperCase();if(seen.has(key))continue;seen.add(key);
-    out.push({tk,tipo:classify(tk),ref:classify(tk)==="ref",md:num(g[CL.md]),tem:pct(g[CL.tem]),tea,
+    out.push({tk,tipo:classify(tk),ref:classify(tk)==="ref",md:num(g[CL.md]),tem:pct(g[CL.tem]),tem30:(tea!=null&&!isNaN(tea)?(Math.pow(1+tea/100,30/365)-1)*100:null),tea,
       tna30:pct(g[CL.tna30]),tnaM:pct(g[CL.tnaM]),cer:pct(g[CL.cer]),varpx:pct(g[CL.varpx]),dias:Math.round(num(g[CL.dias]))});}
   state.rows=out;
   const pg=toGrid(pnR);const pr={};const want=new Set(out.map(r=>r.tk.toUpperCase()));
@@ -511,7 +511,7 @@ const pctFmt=(d=2)=>v=>v.toFixed(d)+'%';
 const xFmt=()=>v=>state.x==='dias'?Math.round(v):v.toFixed(2);
 function renderChart(){
   const rows=state.rows.filter(r=>!r.ref);
-  const YL={tem:"TEM (30/365)",tea:"TEA",tna30:"TNA (30/365)"}[state.y]||state.y.toUpperCase();
+  const YL={tem:"TEM 1/12",tem30:"TEM 30/365",tea:"TEA",tna30:"TNA (30/365)"}[state.y]||state.y.toUpperCase();
   scatterChart("chart",rows,r=>r[state.x],r=>r[state.y],{h:400,line:true,labels:true,big:true,markConv:true,markCompare:true,
     xlabel:state.x==='dias'?"Días al vencimiento":"McD · modified duration (años)",ylabel:YL+" (%)",
     yfmt:pctFmt(2),xfmt:xFmt(),
