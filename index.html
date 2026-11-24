@@ -767,6 +767,7 @@ function calcLive(){
     set('cbid',p&&p.bid);set('coff',p&&p.offer);set('cmid',p&&p.mid);});
 }
 function calcMatrix(){
+  {const valid=new Set(state.rows.filter(r=>!r.ref&&r.tk).map(r=>r.tk)); if(valid.size){const n0=calcState.sel.length; calcState.sel=calcState.sel.filter(tk=>valid.has(tk)); if(calcState.sel.length!==n0){for(const k of Object.keys(calcState.px))if(!valid.has(k))delete calcState.px[k]; for(const k of Object.keys(calcState.px0))if(!valid.has(k))delete calcState.px0[k]; calcSave();}}}
   $("calcHead").innerHTML=['Ticker','Bid','Offer','Mid','CI (T+0)','T+1 (24h)','CI justo','Compra','Venta'].map((h,i)=>`<th style="text-align:${i===0?'left':(i>=7?'left':'right')}">${h}</th>`).join('');
   if(!calcState.sel.length){$("calcBody").innerHTML='<tr><td colspan="9" class="muted" style="padding:16px;text-align:center">Elegí las lecaps arriba y cargá el precio CI (T+0) y el T+1 (24hs) de cada una.</td></tr>';return;}
   $("calcBody").innerHTML=calcState.sel.map(tk=>{
