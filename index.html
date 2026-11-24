@@ -140,6 +140,8 @@
   /* calculadora T+0 */
   .caulbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;font-weight:600}
   .teaconv{font-size:10.5px;color:var(--accent);font-weight:700;margin-left:2px;white-space:nowrap}
+  .caubtn{font-size:10.5px;padding:3px 8px;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;font-weight:700;opacity:.5}
+  .caubtn.on{opacity:1}
   .calcpick{display:flex;gap:6px;flex-wrap:wrap;padding:2px 18px 12px}
   .calcchip{padding:5px 11px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;user-select:none}
   .calcchip:hover{border-color:var(--faint)}
@@ -296,6 +298,7 @@
           <label class="caulbl">Colocadora TNA <input id="calcColoc" class="pinput" style="width:62px" inputmode="decimal">%<span class="teaconv" id="calcColocTea"></span></label>
           <label class="caulbl">Tomadora TNA <input id="calcTom" class="pinput" style="width:62px" inputmode="decimal">%<span class="teaconv" id="calcTomTea"></span></label>
           <label class="caulbl">Días <input id="calcDias" class="pinput" style="width:48px" inputmode="numeric"></label>
+          <button id="calcAutoCau" class="caubtn" title="Traer la caución Caución1D del sheet (default). Si editás se desactiva.">↺ caución sheet</button>
           <div class="toggles" id="calcFiltros"><button data-cf2="fija" class="on">Fija</button><button data-cf2="cer">CER</button><button data-cf2="dual">Dual</button><button data-cf2="all">Todas</button></div>
         </div>
       </div>
@@ -716,13 +719,14 @@ async function refresh(manual){
 function start(){setPlazo(state.plazo,false);setRefreshMode(state.refreshMs);refresh(false);clearInterval(timer);timer=setInterval(()=>{tickCd();if(state.refreshMs>0&&Date.now()>=nextAt)refresh(false);},1000);}
 
 // ---------- Calculadora T+0 (arbitraje CI vs 24hs con caución colocadora/tomadora) ----------
-let calcState={coloc:'21.00',tom:'22.00',dias:'1',filter:'fija',sel:[],px:{},px0:{}};
-try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s==='object'){calcState={coloc:s.coloc!=null?String(s.coloc):(s.rate!=null?String(s.rate):'21.00'),tom:s.tom!=null?String(s.tom):'22.00',dias:s.dias!=null?String(s.dias):'1',filter:s.filter||'fija',sel:Array.isArray(s.sel)?s.sel:[],px:(s.px&&typeof s.px==='object')?s.px:{},px0:(s.px0&&typeof s.px0==='object')?s.px0:{}};}}catch(e){}
+let calcState={coloc:'21.00',tom:'22.00',autoCau:true,dias:'1',filter:'fija',sel:[],px:{},px0:{}};
+try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s==='object'){calcState={coloc:s.coloc!=null?String(s.coloc):(s.rate!=null?String(s.rate):'21.00'),tom:s.tom!=null?String(s.tom):'22.00',dias:s.dias!=null?String(s.dias):'1',filter:s.filter||'fija',sel:Array.isArray(s.sel)?s.sel:[],px:(s.px&&typeof s.px==='object')?s.px:{},px0:(s.px0&&typeof s.px0==='object')?s.px0:{},autoCau:s.autoCau!==undefined?!!s.autoCau:true};}}catch(e){}
 function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
 function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
 function calcImplicita(tk){const p0=calcNum(calcState.px0[tk]),p1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);if(p0==null||p1==null||p0<=0||d<=0)return null;return (p1/p0-1)*365/d*100;}
 function calcCIjusto(tk,rate){const t1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);const r=calcNum(rate);if(t1==null||r==null)return null;const f=Math.pow(1+r/100/365,d);return f>0?t1/f:null;}
 function calcTea(rate){const r=calcNum(rate);return r==null?null:(Math.pow(1+r/100/365,365)-1)*100;}
+function calcSheetCauTna(){const rs=state.rows||[];const r=rs.find(x=>{const t=(x.tk||'').toLowerCase().replace(/\s+/g,'');return t==='caución1d'||t==='caucion1d';});if(!r)return null;if(r.tna30!=null&&!isNaN(r.tna30)&&r.tna30>0)return r.tna30;if(r.tnaM!=null&&!isNaN(r.tnaM)&&r.tnaM>0)return r.tnaM;if(r.tea!=null&&!isNaN(r.tea)&&r.tea>0)return (Math.pow(1+r.tea/100,1/365)-1)*365*100;return null;}
 function calcJustoHtml(tk){
   const jc=calcCIjusto(tk,calcState.coloc), jv=calcCIjusto(tk,calcState.tom);
   if(jc==null&&jv==null)return '<span class="muted">—</span>';
@@ -755,6 +759,7 @@ function calcRowRefresh(tr,tk){
 }
 function calcLive(){
   if(!calcState.sel.length)return;
+  if(calcState.autoCau){const st=calcSheetCauTna(); if(st!=null){const v=st.toFixed(2); if(calcState.coloc!==v||calcState.tom!==v){calcState.coloc=v;calcState.tom=v;calcSave();renderCalc();return;}}}
   const rows=$("calcBody").querySelectorAll('tr[data-tk]');
   if(rows.length!==calcState.sel.length){renderCalc();return;}
   rows.forEach(tr=>{const tk=tr.dataset.tk;const p=state.prices&&state.prices[tk];
@@ -783,6 +788,8 @@ function calcMatrix(){
   });
 }
 function renderCalc(){
+  if(calcState.autoCau){const st=calcSheetCauTna(); if(st!=null){calcState.coloc=st.toFixed(2);calcState.tom=st.toFixed(2);}}
+  const ab=$("calcAutoCau"); if(ab)ab.classList.toggle('on',!!calcState.autoCau);
   const cf=$("calcColoc"); if(cf&&document.activeElement!==cf) cf.value=(calcNum(calcState.coloc)||0).toFixed(2);
   const tf=$("calcTom"); if(tf&&document.activeElement!==tf) tf.value=(calcNum(calcState.tom)||0).toFixed(2);
   const df=$("calcDias"); if(df&&document.activeElement!==df) df.value=String(calcState.dias);
@@ -792,7 +799,7 @@ function renderCalc(){
   const teaC=calcTea(calcState.coloc),teaT=calcTea(calcState.tom);
   const scv=$("calcColocTea"); if(scv)scv.textContent=teaC!=null?" → TEA "+teaC.toFixed(2)+"%":"";
   const stv=$("calcTomTea"); if(stv)stv.textContent=teaT!=null?" → TEA "+teaT.toFixed(2)+"%":"";
-  $("calcFoot").innerHTML=`<b>CI justo = T+1 ÷ (1+TEA)^(días/365)</b> · ponés la <b>TNA</b> de la caución y se pasa a <b>TEA</b> (capitalización diaria): colocadora ${c.toFixed(2)}% → TEA ${teaC!=null?teaC.toFixed(2):'—'}% (compra) / tomadora ${t.toFixed(2)}% → TEA ${teaT!=null?teaT.toFixed(2):'—'}% (venta) · ${d} día(s) · cargá CI y T+1 a mano. <b>Compra:</b> CI por debajo del justo = <span class="calcgood">barato</span> (conviene comprar), por encima = <span class="calcbad">caro</span>. <b>Venta:</b> CI por encima del justo = <span class="calcgood">caro</span> (conviene vender), por debajo = <span class="calcbad">barato</span>. El % es la distancia al CI justo · se guarda todo.`;
+  $("calcFoot").innerHTML=`<b>CI justo = T+1 ÷ (1+TEA)^(días/365)</b> · la <b>TNA</b> de la caución sale del sheet (Caución1D · editable) y se pasa a <b>TEA</b> (capitalización diaria): colocadora ${c.toFixed(2)}% → TEA ${teaC!=null?teaC.toFixed(2):'—'}% (compra) / tomadora ${t.toFixed(2)}% → TEA ${teaT!=null?teaT.toFixed(2):'—'}% (venta) · ${d} día(s) · cargá CI y T+1 a mano. <b>Compra:</b> CI por debajo del justo = <span class="calcgood">barato</span> (conviene comprar), por encima = <span class="calcbad">caro</span>. <b>Venta:</b> CI por encima del justo = <span class="calcgood">caro</span> (conviene vender), por debajo = <span class="calcbad">barato</span>. El % es la distancia al CI justo · se guarda todo.`;
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
@@ -811,11 +818,12 @@ document.querySelectorAll('.toggles button[data-cf]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.toggles button[data-cm]').forEach(b=>b.onclick=()=>{state.cmetric=b.dataset.cm;document.querySelectorAll('.toggles button[data-cm]').forEach(x=>x.classList.toggle('on',x===b));renderChart3();});
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderPricerList();});
 $("refreshBtn").onclick=()=>{nextAt=0;refresh(true);};
-$("calcColoc").oninput=e=>{calcState.coloc=e.target.value;calcSave();renderCalc();};
+$("calcColoc").oninput=e=>{calcState.coloc=e.target.value;calcState.autoCau=false;calcSave();renderCalc();};
 $("calcColoc").onblur=e=>{e.target.value=(calcNum(calcState.coloc)||0).toFixed(2);};
-$("calcTom").oninput=e=>{calcState.tom=e.target.value;calcSave();renderCalc();};
+$("calcTom").oninput=e=>{calcState.tom=e.target.value;calcState.autoCau=false;calcSave();renderCalc();};
 $("calcTom").onblur=e=>{e.target.value=(calcNum(calcState.tom)||0).toFixed(2);};
 $("calcDias").oninput=e=>{calcState.dias=e.target.value;calcSave();renderCalc();};
+const acb=$("calcAutoCau"); if(acb)acb.onclick=()=>{calcState.autoCau=true;calcSave();renderCalc();};
 document.querySelectorAll('#calcFiltros button').forEach(b=>b.onclick=()=>{calcState.filter=b.dataset.cf2;calcSave();renderCalc();});
 document.querySelectorAll('#rfToggles button').forEach(b=>b.onclick=()=>setRefreshMode(+b.dataset.rf));
 document.querySelectorAll('#plazoToggles button').forEach(b=>b.onclick=()=>setPlazo(b.dataset.st,true));
