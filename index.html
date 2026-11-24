@@ -139,6 +139,7 @@
   @media(max-width:560px){.fwdpick{grid-template-columns:1fr}.fwdswap{transform:rotate(90deg)}}
   /* calculadora T+0 */
   .caulbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;font-weight:600}
+  .teaconv{font-size:10.5px;color:var(--accent);font-weight:700;margin-left:2px;white-space:nowrap}
   .calcpick{display:flex;gap:6px;flex-wrap:wrap;padding:2px 18px 12px}
   .calcchip{padding:5px 11px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;user-select:none}
   .calcchip:hover{border-color:var(--faint)}
@@ -292,8 +293,8 @@
       <div class="hd">
         <h2>Calculadora T+0 <span class="note">· poné T+1 y la caución → T+0 justo · caro/barato</span></h2>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <label class="caulbl">Colocadora TNA <input id="calcColoc" class="pinput" style="width:62px" inputmode="decimal">%</label>
-          <label class="caulbl">Tomadora TNA <input id="calcTom" class="pinput" style="width:62px" inputmode="decimal">%</label>
+          <label class="caulbl">Colocadora TNA <input id="calcColoc" class="pinput" style="width:62px" inputmode="decimal">%<span class="teaconv" id="calcColocTea"></span></label>
+          <label class="caulbl">Tomadora TNA <input id="calcTom" class="pinput" style="width:62px" inputmode="decimal">%<span class="teaconv" id="calcTomTea"></span></label>
           <label class="caulbl">Días <input id="calcDias" class="pinput" style="width:48px" inputmode="numeric"></label>
           <div class="toggles" id="calcFiltros"><button data-cf2="fija" class="on">Fija</button><button data-cf2="cer">CER</button><button data-cf2="dual">Dual</button><button data-cf2="all">Todas</button></div>
         </div>
@@ -720,7 +721,8 @@ try{const s=JSON.parse(localStorage.getItem('calcState')||'null');if(s&&typeof s
 function calcSave(){try{localStorage.setItem('calcState',JSON.stringify(calcState));}catch(e){}}
 function calcNum(v){const n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
 function calcImplicita(tk){const p0=calcNum(calcState.px0[tk]),p1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);if(p0==null||p1==null||p0<=0||d<=0)return null;return (p1/p0-1)*365/d*100;}
-function calcCIjusto(tk,rate){const t1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);const r=calcNum(rate);if(t1==null||r==null)return null;const f=1+r/100*d/365;return f>0?t1/f:null;}
+function calcCIjusto(tk,rate){const t1=calcNum(calcState.px[tk]);const d=Math.max(0,calcNum(calcState.dias)||0);const r=calcNum(rate);if(t1==null||r==null)return null;const f=Math.pow(1+r/100/365,d);return f>0?t1/f:null;}
+function calcTea(rate){const r=calcNum(rate);return r==null?null:(Math.pow(1+r/100/365,365)-1)*100;}
 function calcJustoHtml(tk){
   const jc=calcCIjusto(tk,calcState.coloc), jv=calcCIjusto(tk,calcState.tom);
   if(jc==null&&jv==null)return '<span class="muted">—</span>';
@@ -787,7 +789,10 @@ function renderCalc(){
   renderCalcPick();
   calcMatrix();
   const c=(calcNum(calcState.coloc)||0),t=(calcNum(calcState.tom)||0),d=Math.max(0,calcNum(calcState.dias)||0);
-  $("calcFoot").innerHTML=`<b>CI justo = T+1 ÷ (1 + caución × días/365)</b> · colocadora ${c.toFixed(2)}% (compra) / tomadora ${t.toFixed(2)}% (venta) · ${d} día(s) · cargá CI y T+1 a mano. <b>Compra:</b> CI por debajo del justo = <span class="calcgood">barato</span> (conviene comprar), por encima = <span class="calcbad">caro</span>. <b>Venta:</b> CI por encima del justo = <span class="calcgood">caro</span> (conviene vender), por debajo = <span class="calcbad">barato</span>. El % es la distancia al CI justo · se guarda todo.`;
+  const teaC=calcTea(calcState.coloc),teaT=calcTea(calcState.tom);
+  const scv=$("calcColocTea"); if(scv)scv.textContent=teaC!=null?" → TEA "+teaC.toFixed(2)+"%":"";
+  const stv=$("calcTomTea"); if(stv)stv.textContent=teaT!=null?" → TEA "+teaT.toFixed(2)+"%":"";
+  $("calcFoot").innerHTML=`<b>CI justo = T+1 ÷ (1+TEA)^(días/365)</b> · ponés la <b>TNA</b> de la caución y se pasa a <b>TEA</b> (capitalización diaria): colocadora ${c.toFixed(2)}% → TEA ${teaC!=null?teaC.toFixed(2):'—'}% (compra) / tomadora ${t.toFixed(2)}% → TEA ${teaT!=null?teaT.toFixed(2):'—'}% (venta) · ${d} día(s) · cargá CI y T+1 a mano. <b>Compra:</b> CI por debajo del justo = <span class="calcgood">barato</span> (conviene comprar), por encima = <span class="calcbad">caro</span>. <b>Venta:</b> CI por encima del justo = <span class="calcgood">caro</span> (conviene vender), por debajo = <span class="calcbad">barato</span>. El % es la distancia al CI justo · se guarda todo.`;
 }
 document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
   state.tab=b.dataset.tab;document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('on',x===b));
